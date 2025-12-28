@@ -1,0 +1,14 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Document orange -->
+  <rect x="64" y="64" rx="60" ry="60" width="384" height="384" fill="#FF7A00"/>
+
+  <!-- Lignes blanches du document -->
+  <rect x="160" y="160" width="192" height="30" fill="#FFFFFF"/>
+  <rect x="160" y="220" width="192" height="30" fill="#FFFFFF"/>
+
+  <!-- Cercle de la coche -->
+  <circle cx="365" cy="365" r="65" fill="#2E2E2E"/>
+
+  <!-- Coche blanche -->
+  <path d="M325 365 L355 395 L405 335" stroke="#FFFFFF" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

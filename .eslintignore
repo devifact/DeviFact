@@ -1,0 +1,5 @@
+# Fichiers de configuration à exclure d'ESLint
+postcss.config.js
+next.config.js
+tailwind.config.ts
+.eslintrc.json

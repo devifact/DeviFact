@@ -1,0 +1,34 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@supabase/functions-js@2": "2.89.0"
+  },
+  "jsr": {
+    "@supabase/functions-js@2.89.0": {
+      "integrity": "9b7c4224a25fe62c27a35b49be9a52d134b45238ccbb2efeb21529227c7351a5"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@stripe/stripe-js@^8.6.0",
+        "npm:@supabase/supabase-js@^2.89.0",
+        "npm:@types/node@20.6.2",
+        "npm:@types/react-dom@18.2.7",
+        "npm:@types/react@18.2.22",
+        "npm:autoprefixer@10.4.15",
+        "npm:date-fns@^4.1.0",
+        "npm:eslint-config-next@13.5.1",
+        "npm:eslint@8.49.0",
+        "npm:next@13.5.1",
+        "npm:postcss@8.4.30",
+        "npm:react-dom@18.2.0",
+        "npm:react-hot-toast@^2.6.0",
+        "npm:react@18.2.0",
+        "npm:stripe@^20.1.0",
+        "npm:tailwindcss@3.3.3",
+        "npm:typescript@5.2.2"
+      ]
+    }
+  }
+}
