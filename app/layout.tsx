@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   description: 'Créez vos devis et factures professionnels en quelques clics. Solution simple et intuitive pour artisans.',
   keywords: ['devis', 'factures', 'artisans', 'gestion', 'facturation'],
   authors: [{ name: 'DevisFact' }],
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/favicon.svg',
+  },
   themeColor: '#FF7A00',
   viewport: 'width=device-width, initial-scale=1',
   openGraph: {

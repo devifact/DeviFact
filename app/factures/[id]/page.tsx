@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = 'edge';
+
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
