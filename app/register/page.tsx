@@ -37,7 +37,8 @@ export default function RegisterPage() {
       toast.success('Compte créé avec succès ! Essai gratuit de 30 jours activé.');
       router.push('/dashboard');
     } catch (error) {
-      toast.error(error.message || 'Erreur lors de la création du compte');
+      const message = error instanceof Error ? error.message : 'Erreur lors de la creation du compte';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -221,3 +222,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+

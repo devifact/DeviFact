@@ -21,7 +21,8 @@ export default function LoginPage() {
       await signIn(email, password);
       toast.success('Connexion réussie');
     } catch (error) {
-      toast.error(error.message || 'Erreur lors de la connexion');
+      const message = error instanceof Error ? error.message : 'Erreur lors de la connexion';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
