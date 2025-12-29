@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "postbuild": "node -e \"const fs=require('fs'); fs.rmSync('.next/cache',{recursive:true,force:true});\"",
+    "maintenance:on": "node scripts/maintenance.js on",
+    "maintenance:off": "node scripts/maintenance.js off",
     "start": "next start",
     "lint": "next lint"
   },
