@@ -30,10 +30,10 @@ interface MouvementStock {
   created_at: string;
   produit: {
     designation: string;
-  };
+  } | null;
   fournisseur?: {
     nom: string;
-  };
+  } | null;
 }
 
 type RawMouvementStock = Omit<MouvementStock, 'produit' | 'fournisseur'> & {
