@@ -117,7 +117,9 @@ export default function StocksPage() {
       );
       setFournisseurs(fournisseursRes.data || []);
     } catch (error) {
-      toast.error(error.message);
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors du chargement des stocks';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -136,7 +138,9 @@ export default function StocksPage() {
       toast.success('Gestion de stock activée');
       fetchData();
     } catch (error) {
-      toast.error(error.message);
+      const message =
+        error instanceof Error ? error.message : "Erreur lors de l'activation du stock";
+      toast.error(message);
     }
   };
 
@@ -172,7 +176,11 @@ export default function StocksPage() {
       });
       fetchData();
     } catch (error) {
-      toast.error(error.message);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de l'enregistrement du mouvement";
+      toast.error(message);
     }
   };
 
