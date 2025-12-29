@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import type { Database } from '@/lib/database.types';
+import type { Database } from '@/lib/database.types.ts';
 
 type Fournisseur = Database['public']['Tables']['fournisseurs']['Row'];
 type Produit = Database['public']['Tables']['produits']['Row'];
@@ -50,8 +50,10 @@ export default function FournisseursPage() {
 
       if (error) throw error;
       setFournisseurs(data || []);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors du chargement des fournisseurs';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -153,8 +155,10 @@ export default function FournisseursPage() {
       setShowModal(false);
       setEditingFournisseur(null);
       fetchFournisseurs();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement du fournisseur';
+      toast.error(message);
     }
   };
 
@@ -198,8 +202,10 @@ export default function FournisseursPage() {
         prix_vente_ht: 0,
       });
       await fetchProduitsPrices(selectedFournisseur.id);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de la sauvegarde du prix';
+      toast.error(message);
     }
   };
 
@@ -215,8 +221,10 @@ export default function FournisseursPage() {
       if (error) throw error;
       toast.success('Fournisseur supprimé');
       fetchFournisseurs();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de la suppression du fournisseur';
+      toast.error(message);
     }
   };
 
@@ -234,8 +242,10 @@ export default function FournisseursPage() {
       if (selectedFournisseur) {
         await fetchProduitsPrices(selectedFournisseur.id);
       }
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de la suppression du prix';
+      toast.error(message);
     }
   };
 
@@ -257,6 +267,7 @@ export default function FournisseursPage() {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Fournisseurs</h1>
           <button
+            type="button"
             onClick={() => openModal()}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
           >
@@ -309,18 +320,21 @@ export default function FournisseursPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       <button
+                        type="button"
                         onClick={() => openPriceModal(fournisseur)}
                         className="text-green-600 hover:text-green-900"
                       >
                         Prix
                       </button>
                       <button
+                        type="button"
                         onClick={() => openModal(fournisseur)}
                         className="text-blue-600 hover:text-blue-900"
                       >
                         Modifier
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(fournisseur.id)}
                         className="text-red-600 hover:text-red-900"
                       >
@@ -539,6 +553,7 @@ export default function FournisseursPage() {
                           </td>
                           <td className="px-4 py-3 text-right text-sm">
                             <button
+                              type="button"
                               onClick={() => handleDeletePrice(pp.id)}
                               className="text-red-600 hover:text-red-900"
                             >
@@ -555,6 +570,7 @@ export default function FournisseursPage() {
 
             <div className="flex justify-end mt-6">
               <button
+                type="button"
                 onClick={() => setShowPriceModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >

@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
-import { useSubscription } from '@/lib/hooks/use-subscription';
-import { useProfile } from '@/lib/hooks/use-profile';
-import { usePremium } from '@/lib/hooks/use-premium';
-import { Logo } from './logo';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { useSubscription } from '@/lib/hooks/use-subscription.ts';
+import { useProfile } from '@/lib/hooks/use-profile.ts';
+import { usePremium } from '@/lib/hooks/use-premium.ts';
+import { Logo } from './logo.tsx';
 
 const navItems = [
   { name: 'Tableau de bord', href: '/dashboard', icon: '📊' },

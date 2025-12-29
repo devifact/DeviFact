@@ -3,12 +3,12 @@
 export const runtime = 'edge';
 
 import { useEffect, useState, useCallback } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { supabase } from '@/lib/supabase.ts';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import type { Database } from '@/lib/database.types';
+import type { Database } from '@/lib/database.types.ts';
 
 type Devis = Database['public']['Tables']['devis']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
@@ -81,8 +81,9 @@ export default function DevisDetailPage() {
 
       setClient(clientResult.data);
       setLignes(lignesResult.data || []);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
       router.push('/devis');
     } finally {
       setLoading(false);
@@ -113,8 +114,14 @@ export default function DevisDetailPage() {
         throw new Error('Session expirée');
       }
 
+      // deno-lint-ignore no-process-global
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL manquante');
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-pdf`,
+        `${supabaseUrl}/functions/v1/generate-pdf`,
         {
           method: 'POST',
           headers: {
@@ -134,18 +141,23 @@ export default function DevisDetailPage() {
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const doc = globalThis.document;
+      if (!doc) {
+        throw new Error('Telechargement indisponible');
+      }
+      const url = URL.createObjectURL(blob);
+      const a = doc.createElement('a');
       a.href = url;
       a.download = `devis-${devis.numero}.pdf`;
-      document.body.appendChild(a);
+      doc.body?.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      a.remove();
 
       toast.success('PDF téléchargé avec succès', { id: 'pdf-generation' });
-    } catch (error: any) {
-      toast.error(error.message, { id: 'pdf-generation' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message, { id: 'pdf-generation' });
     } finally {
       setGeneratingPdf(false);
     }
@@ -169,8 +181,14 @@ export default function DevisDetailPage() {
         throw new Error('Session expirée');
       }
 
+      // deno-lint-ignore no-process-global
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL manquante');
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-facture`,
+        `${supabaseUrl}/functions/v1/create-facture`,
         {
           method: 'POST',
           headers: {
@@ -196,8 +214,9 @@ export default function DevisDetailPage() {
       } else {
         router.push('/factures');
       }
-    } catch (error: any) {
-      toast.error(error.message, { id: 'create-facture' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message, { id: 'create-facture' });
     } finally {
       setFactureLoading(false);
     }
@@ -219,8 +238,9 @@ export default function DevisDetailPage() {
 
       setDevis({ ...devis, statut });
       toast.success('Statut mis a jour');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
     } finally {
       setStatusUpdating(false);
     }
@@ -229,7 +249,10 @@ export default function DevisDetailPage() {
   const handleDelete = async () => {
     if (!devis || !user) return;
 
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer le devis ${devis.numero} ?`)) {
+    const confirmDelete = globalThis.confirm?.(
+      `Êtes-vous sûr de vouloir supprimer le devis ${devis.numero} ?`
+    );
+    if (!confirmDelete) {
       return;
     }
 
@@ -247,8 +270,9 @@ export default function DevisDetailPage() {
 
       toast.success('Devis supprimé avec succès');
       router.push('/devis');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
     } finally {
       setDeleteLoading(false);
     }
@@ -287,6 +311,7 @@ export default function DevisDetailPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <button
+              type="button"
               onClick={() => router.push('/devis')}
               className="text-blue-600 hover:text-blue-800 mb-2 flex items-center"
             >
@@ -299,6 +324,7 @@ export default function DevisDetailPage() {
           <div className="flex items-center gap-4">
             {getStatusBadge(devis.statut)}
             <button
+              type="button"
               onClick={handleDownloadPdf}
               disabled={generatingPdf}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -306,6 +332,7 @@ export default function DevisDetailPage() {
               {generatingPdf ? 'Génération...' : 'Télécharger PDF'}
             </button>
             <button
+              type="button"
               onClick={handleFacturer}
               disabled={factureLoading || devis.statut !== 'accepte'}
               className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -313,6 +340,7 @@ export default function DevisDetailPage() {
               Créer une facture
             </button>
             <button
+              type="button"
               onClick={handleDelete}
               disabled={deleteLoading}
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"

@@ -1,11 +1,12 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { AuthProvider } from '@/lib/auth-context';
+import { AuthProvider } from '@/lib/auth-context.tsx';
 import { Toaster } from 'react-hot-toast';
-import SupportAssistant from '@/components/support-assistant';
+import SupportAssistant from '@/components/support-assistant.tsx';
 
 const inter = Inter({ subsets: ['latin'] });
+// deno-lint-ignore no-process-global
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 export const metadata: Metadata = {

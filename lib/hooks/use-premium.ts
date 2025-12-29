@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase.ts';
+import { useAuth } from '@/lib/auth-context.tsx';
 
 interface PremiumStatus {
   isPremium: boolean;

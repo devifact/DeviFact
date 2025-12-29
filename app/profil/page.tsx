@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { AddressAutocomplete } from '@/components/address-autocomplete';
-import { useAuth } from '@/lib/auth-context';
-import { useProfile } from '@/lib/hooks/use-profile';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { AddressAutocomplete } from '@/components/address-autocomplete.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { useProfile } from '@/lib/hooks/use-profile.ts';
+import { supabase } from '@/lib/supabase.ts';
 import {
   isValidSiret,
   normalizePhoneInput,
   sanitizeDigits,
   validateFrenchPhone,
-} from '@/lib/validation';
+} from '@/lib/validation.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -133,8 +133,10 @@ export default function ProfilPage() {
       });
 
       toast.success('Profil enregistré avec succès');
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur lors de l\'enregistrement');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement';
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -170,8 +172,10 @@ export default function ProfilPage() {
       setPhoneMessage('Code envoye par email.');
       setPhoneCode('');
       await refetchProfile();
-    } catch (error: any) {
-      setPhoneError(error.message || 'Erreur lors de l\'envoi du code.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de l\'envoi du code.';
+      setPhoneError(message);
     } finally {
       setSendingPhoneCode(false);
     }
@@ -201,8 +205,9 @@ export default function ProfilPage() {
       setPhoneCode('');
       setPhoneCodeRequested(false);
       await refetchProfile();
-    } catch (error: any) {
-      setPhoneError(error.message || 'Code invalide.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Code invalide.';
+      setPhoneError(message);
     } finally {
       setVerifyingPhoneCode(false);
     }
@@ -283,8 +288,10 @@ export default function ProfilPage() {
         setLogoPreviewUrl('');
       }
       toast.success('Logo televerse. Pensez a enregistrer le profil.');
-    } catch (error: any) {
-      setLogoError(error.message || 'Erreur lors du televersement.');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors du televersement.';
+      setLogoError(message);
     } finally {
       setLogoUploading(false);
     }

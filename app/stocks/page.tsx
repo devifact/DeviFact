@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import PremiumGuard from '@/components/premium-guard';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { supabase } from '@/lib/supabase.ts';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import PremiumGuard from '@/components/premium-guard.tsx';
 import toast from 'react-hot-toast';
 
 interface Produit {
@@ -35,6 +35,11 @@ interface MouvementStock {
     nom: string;
   };
 }
+
+type RawMouvementStock = Omit<MouvementStock, 'produit' | 'fournisseur'> & {
+  produit: MouvementStock['produit'] | MouvementStock['produit'][] | null;
+  fournisseur?: MouvementStock['fournisseur'] | MouvementStock['fournisseur'][] | null;
+};
 
 interface Fournisseur {
   id: string;
@@ -102,14 +107,16 @@ export default function StocksPage() {
       if (fournisseursRes.error) throw fournisseursRes.error;
 
       setProduits(produitsRes.data || []);
-      const mouvementsData = (mouvementsRes.data || []) as any[];
-      setMouvements(mouvementsData.map(m => ({
-        ...m,
-        produit: Array.isArray(m.produit) ? m.produit[0] : m.produit,
-        fournisseur: Array.isArray(m.fournisseur) ? m.fournisseur[0] : m.fournisseur
-      })));
+      const mouvementsData = (mouvementsRes.data || []) as RawMouvementStock[];
+      setMouvements(
+        mouvementsData.map((m) => ({
+          ...m,
+          produit: Array.isArray(m.produit) ? m.produit[0] : m.produit,
+          fournisseur: Array.isArray(m.fournisseur) ? m.fournisseur[0] : m.fournisseur,
+        }))
+      );
       setFournisseurs(fournisseursRes.data || []);
-    } catch (error: any) {
+    } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
@@ -128,7 +135,7 @@ export default function StocksPage() {
 
       toast.success('Gestion de stock activée');
       fetchData();
-    } catch (error: any) {
+    } catch (error) {
       toast.error(error.message);
     }
   };
@@ -164,7 +171,7 @@ export default function StocksPage() {
         notes: '',
       });
       fetchData();
-    } catch (error: any) {
+    } catch (error) {
       toast.error(error.message);
     }
   };
@@ -190,6 +197,7 @@ export default function StocksPage() {
                 <span className="text-sm font-semibold text-amber-900">Premium</span>
               </div>
               <button
+                type="button"
                 onClick={() => setShowMouvementModal(true)}
                 className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors font-medium"
               >

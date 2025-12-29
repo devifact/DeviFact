@@ -1,16 +1,29 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { useProfile } from '@/lib/hooks/use-profile';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { useProfile } from '@/lib/hooks/use-profile.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { ProductSearch } from '@/components/product-search';
-import type { Database } from '@/lib/database.types';
+import { ProductSearch } from '@/components/product-search.tsx';
+import type { Database } from '@/lib/database.types.ts';
 
 type Client = Database['public']['Tables']['clients']['Row'];
+type ProduitSelection = {
+  id: string;
+  designation: string;
+  reference: string | null;
+  categorie: string | null;
+  unite: string | null;
+  type: 'standard' | 'custom' | null;
+  prix_ht_defaut: number | null;
+  taux_tva_defaut: number | null;
+  fournisseur_defaut_id: string | null;
+  fournisseur_nom?: string | null;
+  actif: boolean | null;
+};
 type LigneDevis = {
   id: string;
   designation: string;
@@ -65,8 +78,9 @@ export default function NouveauDevisPage() {
 
       if (error) throw error;
       setClients(data || []);
-    } catch (error: any) {
-      toast.error('Erreur lors du chargement des clients');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors du chargement des clients';
+      toast.error(message);
     }
   }, [user]);
 
@@ -84,7 +98,7 @@ export default function NouveauDevisPage() {
       } else {
         setNumero('DEV-0001');
       }
-    } catch (error) {
+    } catch {
       setNumero('DEV-0001');
     }
   }, [user]);
@@ -122,7 +136,11 @@ export default function NouveauDevisPage() {
     setLignes(lignes.filter(l => l.id !== id));
   };
 
-  const updateLigne = (id: string, field: keyof LigneDevis, value: any) => {
+  const updateLigne = <K extends keyof LigneDevis>(
+    id: string,
+    field: K,
+    value: LigneDevis[K]
+  ) => {
     setLignes(lignes.map(l => l.id === id ? { ...l, [field]: value } : l));
   };
 
@@ -132,7 +150,7 @@ export default function NouveauDevisPage() {
     ));
   };
 
-  const handleSelectProduct = (id: string, product: any) => {
+  const handleSelectProduct = (id: string, product: ProduitSelection) => {
     const prixUnitaire = product?.prix_ht_defaut !== null ? Number(product.prix_ht_defaut) : 0;
     const tauxTva = product?.taux_tva_defaut !== null ? Number(product.taux_tva_defaut) : 20;
 
@@ -222,8 +240,10 @@ export default function NouveauDevisPage() {
 
       toast.success('Devis créé avec succès');
       router.push('/devis');
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur lors de la création du devis');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de la création du devis';
+      toast.error(message);
     } finally {
       setLoading(false);
     }

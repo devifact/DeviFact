@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { useSubscription } from '@/lib/hooks/use-subscription';
-import { usePremium } from '@/lib/hooks/use-premium';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { useSubscription } from '@/lib/hooks/use-subscription.ts';
+import { usePremium } from '@/lib/hooks/use-premium.ts';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import toast from 'react-hot-toast';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase.ts';
 
 export default function AbonnementPage() {
   const { user, loading: authLoading } = useAuth();
@@ -43,6 +43,7 @@ export default function AbonnementPage() {
         return;
       }
 
+      // deno-lint-ignore no-process-global
       const apiUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-checkout-session`;
 
       const response = await fetch(apiUrl, {
@@ -61,10 +62,15 @@ export default function AbonnementPage() {
       }
 
       if (data.url) {
-        window.location.href = data.url;
+        const location = globalThis.location;
+        if (!location) {
+          throw new Error('Navigation indisponible');
+        }
+        location.href = data.url;
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur lors de la souscription');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la souscription';
+      toast.error(message);
     } finally {
       setSubscribing(false);
     }
@@ -80,6 +86,7 @@ export default function AbonnementPage() {
         return;
       }
 
+      // deno-lint-ignore no-process-global
       const apiUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-premium-checkout`;
 
       const response = await fetch(apiUrl, {
@@ -98,10 +105,15 @@ export default function AbonnementPage() {
       }
 
       if (data.url) {
-        window.location.href = data.url;
+        const location = globalThis.location;
+        if (!location) {
+          throw new Error('Navigation indisponible');
+        }
+        location.href = data.url;
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur lors de la souscription premium');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la souscription premium';
+      toast.error(message);
     } finally {
       setSubscribingPremium(false);
     }
@@ -117,6 +129,12 @@ export default function AbonnementPage() {
         return;
       }
 
+      const location = globalThis.location;
+      if (!location) {
+        throw new Error('Navigation indisponible');
+      }
+
+      // deno-lint-ignore no-process-global
       const apiUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-billing-portal`;
 
       const response = await fetch(apiUrl, {
@@ -126,7 +144,7 @@ export default function AbonnementPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          returnUrl: `${window.location.origin}/abonnement`,
+          returnUrl: `${location.origin}/abonnement`,
         }),
       });
 
@@ -137,10 +155,11 @@ export default function AbonnementPage() {
       }
 
       if (data.url) {
-        window.location.href = data.url;
+        location.href = data.url;
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Erreur lors de la gestion premium');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la gestion premium';
+      toast.error(message);
     } finally {
       setManagingPremium(false);
     }
@@ -274,6 +293,7 @@ export default function AbonnementPage() {
               </div>
               {premiumActive && (
                 <button
+                  type="button"
                   onClick={handleManagePremium}
                   disabled={managingPremium}
                   className="mt-4 w-full sm:w-auto px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
@@ -308,6 +328,7 @@ export default function AbonnementPage() {
                 </li>
               </ul>
               <button
+                type="button"
                 onClick={() => handleSubscribe('mensuel')}
                 disabled={subscribing || hasActiveSubscription}
                 className="w-full mt-auto bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
@@ -355,6 +376,7 @@ export default function AbonnementPage() {
                 </li>
               </ul>
               <button
+                type="button"
                 onClick={() => handleSubscribe('annuel')}
                 disabled={subscribing || hasActiveSubscription}
                 className="w-full mt-auto bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
@@ -397,6 +419,7 @@ export default function AbonnementPage() {
                 </li>
               </ul>
               <button
+                type="button"
                 onClick={() => handleSubscribePremium('mensuel')}
                 disabled={premiumButtonsDisabled}
                 className="w-full mt-auto bg-slate-900 text-white py-3 px-4 rounded-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
@@ -448,6 +471,7 @@ export default function AbonnementPage() {
                 </li>
               </ul>
               <button
+                type="button"
                 onClick={() => handleSubscribePremium('annuel')}
                 disabled={premiumButtonsDisabled}
                 className="w-full mt-auto bg-amber-400 text-slate-900 py-3 px-4 rounded-lg hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed font-bold transition-colors"

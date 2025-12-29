@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/lib/auth-context.tsx';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
-import { Logo } from '@/components/logo';
+import { Logo } from '@/components/logo.tsx';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -36,7 +36,7 @@ export default function RegisterPage() {
       await signUp(email, password);
       toast.success('Compte créé avec succès ! Essai gratuit de 30 jours activé.');
       router.push('/dashboard');
-    } catch (error: any) {
+    } catch (error) {
       toast.error(error.message || 'Erreur lors de la création du compte');
     } finally {
       setLoading(false);

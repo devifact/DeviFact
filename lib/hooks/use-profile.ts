@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../supabase';
-import { useAuth } from '../auth-context';
-import type { Database } from '../database.types';
+import { supabase } from '../supabase.ts';
+import { useAuth } from '../auth-context.tsx';
+import type { Database } from '../database.types.ts';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 

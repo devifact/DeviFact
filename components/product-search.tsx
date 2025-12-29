@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/lib/supabase.ts';
+import { useAuth } from '@/lib/auth-context.tsx';
 
 type Produit = {
   id: string;
@@ -18,12 +18,16 @@ type Produit = {
   actif: boolean | null;
 };
 
+type ProduitWithFournisseur = Produit & {
+  fournisseur?: { nom?: string | null } | { nom?: string | null }[] | null;
+};
+
 interface ProductSearchProps {
   onSelectProduct: (product: Produit) => void;
   placeholder?: string;
 }
 
-const normalizeProduct = (product: any): Produit => {
+const normalizeProduct = (product: ProduitWithFournisseur): Produit => {
   const fournisseur =
     product.fournisseur_nom ??
     (Array.isArray(product.fournisseur)

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/lib/auth-context.tsx';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { Logo } from '@/components/logo';
+import { Logo } from '@/components/logo.tsx';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       await signIn(email, password);
       toast.success('Connexion réussie');
-    } catch (error: any) {
+    } catch (error) {
       toast.error(error.message || 'Erreur lors de la connexion');
     } finally {
       setLoading(false);

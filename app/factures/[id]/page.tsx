@@ -3,12 +3,12 @@
 export const runtime = 'edge';
 
 import { useCallback, useEffect, useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import type { Database } from '@/lib/database.types';
+import type { Database } from '@/lib/database.types.ts';
 
 type Facture = Database['public']['Tables']['factures']['Row'];
 type LigneFacture = Database['public']['Tables']['lignes_factures']['Row'];
@@ -82,8 +82,9 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
       } as FactureDetails;
 
       setFacture(factureDetails);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors du chargement.';
+      toast.error(message);
       router.push('/factures');
     } finally {
       setLoading(false);
@@ -113,8 +114,14 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
         throw new Error('Session expirée');
       }
 
+      // deno-lint-ignore no-process-global
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('URL Supabase manquante.');
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-pdf`,
+        `${supabaseUrl}/functions/v1/generate-pdf`,
         {
           method: 'POST',
           headers: {
@@ -134,18 +141,24 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${facture.numero}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const doc = globalThis.document;
+      if (!doc) {
+        throw new Error('Navigateur indisponible.');
+      }
+
+      const url = URL.createObjectURL(blob);
+      const link = doc.createElement('a');
+      link.href = url;
+      link.download = `${facture.numero}.pdf`;
+      doc.body?.appendChild(link);
+      link.click();
+      URL.revokeObjectURL(url);
+      doc.body?.removeChild(link);
 
       toast.success('PDF généré avec succès', { id: 'pdf' });
-    } catch (error: any) {
-      toast.error(error.message, { id: 'pdf' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors du telechargement.';
+      toast.error(message, { id: 'pdf' });
     }
   };
 
@@ -189,8 +202,9 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
       setReferencePaiement('');
       setNotesPaiement('');
       await fetchFactureDetails();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement.';
+      toast.error(message);
     }
   };
 
@@ -246,6 +260,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
         <div className="flex items-center justify-between mb-8">
           <div>
             <button
+              type="button"
               onClick={() => router.push('/factures')}
               className="text-gray-600 hover:text-gray-900 mb-2 flex items-center"
             >
@@ -255,6 +270,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
           </div>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={handleDownloadPDF}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
             >
@@ -263,12 +279,14 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
             {facture.statut !== 'payee' && facture.statut !== 'annulee' && (
               <>
                 <button
+                  type="button"
                   onClick={() => openPaymentModal('acompte')}
                   className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 font-medium"
                 >
                   Acompte
                 </button>
                 <button
+                  type="button"
                   onClick={() => openPaymentModal('solde')}
                   className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium"
                 >
@@ -561,6 +579,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
 
             <div className="flex gap-2 justify-end mt-6">
               <button
+                type="button"
                 onClick={() => {
                   setShowPaymentModal(false);
                   setMontantPaiement('');
@@ -573,6 +592,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
                 Annuler
               </button>
               <button
+                type="button"
                 onClick={handleEnregistrerPaiement}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
               >

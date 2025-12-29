@@ -11,6 +11,22 @@ export type AddressSuggestion = {
   departement: string;
 };
 
+type AddressApiFeature = {
+  properties?: {
+    label?: string;
+    context?: string;
+    housenumber?: string;
+    street?: string;
+    name?: string;
+    postcode?: string;
+    city?: string;
+  };
+};
+
+type AddressApiResponse = {
+  features?: AddressApiFeature[];
+};
+
 type AddressAutocompleteProps = {
   value: string;
   onChange: (value: string) => void;
@@ -87,10 +103,10 @@ export function AddressAutocomplete({
           throw new Error('Adresse API error');
         }
 
-        const data = await response.json();
+        const data = (await response.json()) as AddressApiResponse;
         if (requestIdRef.current !== requestId) return;
 
-        const results = (data.features || []).map((feature: any) => {
+        const results = (data.features ?? []).map((feature) => {
           const props = feature.properties || {};
           const contextParts = (props.context || '')
             .split(',')
@@ -117,8 +133,9 @@ export function AddressAutocomplete({
         setSuggestions(results);
         setIsOpen(true);
         setActiveIndex(-1);
-      } catch (error: any) {
-        if (error?.name === 'AbortError') return;
+      } catch (error) {
+        const errorName = error instanceof Error ? error.name : '';
+        if (errorName === 'AbortError') return;
         if (requestIdRef.current !== requestId) return;
         setSuggestions([]);
         setIsOpen(true);

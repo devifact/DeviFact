@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { useProfile } from '@/lib/hooks/use-profile';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { useProfile } from '@/lib/hooks/use-profile.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
-import type { Database } from '@/lib/database.types';
+import type { Database } from '@/lib/database.types.ts';
 
 type Devis = Database['public']['Tables']['devis']['Row'];
 
@@ -35,8 +35,9 @@ export default function DevisPage() {
 
       if (error) throw error;
       setDevis(data || []);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -94,8 +95,14 @@ export default function DevisPage() {
         throw new Error('Session expirée');
       }
 
+      // deno-lint-ignore no-process-global
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL manquante');
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-pdf`,
+        `${supabaseUrl}/functions/v1/generate-pdf`,
         {
           method: 'POST',
           headers: {
@@ -115,25 +122,33 @@ export default function DevisPage() {
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const doc = globalThis.document;
+      if (!doc) {
+        throw new Error('Telechargement indisponible');
+      }
+      const url = URL.createObjectURL(blob);
+      const a = doc.createElement('a');
       a.href = url;
       a.download = `devis-${numero}.pdf`;
-      document.body.appendChild(a);
+      doc.body?.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      a.remove();
 
       toast.success('PDF téléchargé avec succès', { id: `pdf-${devisId}` });
-    } catch (error: any) {
-      toast.error(error.message, { id: `pdf-${devisId}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message, { id: `pdf-${devisId}` });
     } finally {
       setPdfLoadingId(null);
     }
   };
 
   const handleDeleteDevis = async (devisId: string, numero: string) => {
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer le devis ${numero} ?`)) {
+    const confirmDelete = globalThis.confirm?.(
+      `Êtes-vous sûr de vouloir supprimer le devis ${numero} ?`
+    );
+    if (!confirmDelete) {
       return;
     }
 
@@ -151,8 +166,9 @@ export default function DevisPage() {
 
       toast.success('Devis supprimé avec succès');
       fetchDevis();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
     } finally {
       setDeleteLoadingId(null);
     }
@@ -175,8 +191,14 @@ export default function DevisPage() {
         throw new Error('Session expirée');
       }
 
+      // deno-lint-ignore no-process-global
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL manquante');
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-facture`,
+        `${supabaseUrl}/functions/v1/create-facture`,
         {
           method: 'POST',
           headers: {
@@ -202,8 +224,9 @@ export default function DevisPage() {
       } else {
         router.push('/factures');
       }
-    } catch (error: any) {
-      toast.error(error.message, { id: `facture-${devisId}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message, { id: `facture-${devisId}` });
     } finally {
       setFactureLoadingId(null);
     }
@@ -227,6 +250,7 @@ export default function DevisPage() {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Devis</h1>
           <button
+            type="button"
             onClick={handleCreateDevis}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
           >
@@ -297,6 +321,7 @@ export default function DevisPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                       <div className="flex items-center justify-center gap-3">
                         <button
+                          type="button"
                           onClick={() => handleViewDevis(d.id)}
                           className="text-blue-600 hover:text-blue-900"
                           title="Voir le devis"
@@ -304,6 +329,7 @@ export default function DevisPage() {
                           Voir
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleDownloadPdf(d.id, d.numero)}
                           className="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={pdfLoadingId === d.id}
@@ -312,6 +338,7 @@ export default function DevisPage() {
                           PDF
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleFacturer(d.id, d.statut)}
                           className="text-indigo-600 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Créer une facture"
@@ -320,6 +347,7 @@ export default function DevisPage() {
                           Facturer
                         </button>
                         <button
+                          type="button"
                           onClick={() => handleDeleteDevis(d.id, d.numero)}
                           className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={deleteLoadingId === d.id}

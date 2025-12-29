@@ -1,14 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { useProfile } from '@/lib/hooks/use-profile';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { useProfile } from '@/lib/hooks/use-profile.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
-import type { Database } from '@/lib/database.types';
+import type { Database } from '@/lib/database.types.ts';
 
 type Facture = Database['public']['Tables']['factures']['Row'];
 type DevisForFacture = {
@@ -19,6 +19,9 @@ type DevisForFacture = {
     nom: string;
     societe: string | null;
   } | null;
+};
+type DevisWithClient = DevisForFacture & {
+  client: DevisForFacture['client'] | DevisForFacture['client'][];
 };
 
 export default function FacturesPage() {
@@ -46,8 +49,9 @@ export default function FacturesPage() {
 
       if (error) throw error;
       setFactures(data || []);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -72,10 +76,10 @@ export default function FacturesPage() {
 
       if (error) throw error;
 
-      const devisData = (data || []).map((d: any) => ({
+      const devisData = ((data || []) as DevisWithClient[]).map((d) => ({
         ...d,
         client: Array.isArray(d.client) ? d.client[0] : d.client,
-      })) as DevisForFacture[];
+      }));
 
       if (devisData.length === 0) {
         setEligibleDevis([]);
@@ -98,8 +102,10 @@ export default function FacturesPage() {
       const availableDevis = devisData.filter((d) => !facturedIds.has(d.id));
       setEligibleDevis(availableDevis);
       setSelectedDevisId(availableDevis[0]?.id || '');
-    } catch (error: any) {
-      toast.error('Erreur lors du chargement des devis');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors du chargement des devis';
+      toast.error(message);
     } finally {
       setLoadingDevis(false);
     }
@@ -162,8 +168,14 @@ export default function FacturesPage() {
         throw new Error('Session expiree');
       }
 
+      // deno-lint-ignore no-process-global
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL manquante');
+      }
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-facture`,
+        `${supabaseUrl}/functions/v1/create-facture`,
         {
           method: 'POST',
           headers: {
@@ -190,8 +202,9 @@ export default function FacturesPage() {
       if (facture?.id) {
         router.push(`/factures/${facture.id}`);
       }
-    } catch (error: any) {
-      toast.error(error.message, { id: 'create-facture' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message, { id: 'create-facture' });
     } finally {
       setCreatingFacture(false);
     }
@@ -215,6 +228,7 @@ export default function FacturesPage() {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Factures</h1>
           <button
+            type="button"
             onClick={handleCreateFacture}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium"
           >

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import PremiumGuard from '@/components/premium-guard';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { supabase } from '@/lib/supabase.ts';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import PremiumGuard from '@/components/premium-guard.tsx';
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -28,6 +28,15 @@ interface Facture {
     societe: string;
   };
 }
+
+type RawFacture = {
+  id: string;
+  numero: string;
+  date_emission: string;
+  statut: string;
+  total_ttc: number;
+  client?: { nom: string | null; societe: string | null } | { nom: string | null; societe: string | null }[] | null;
+};
 
 type PeriodeType = 'mois' | 'trimestre' | 'annee' | 'personnalisee';
 
@@ -90,11 +99,19 @@ export default function ComptabilitePage() {
 
       if (error) throw error;
 
-      const facturesData = (data || []) as any[];
-      setFactures(facturesData.map(f => ({
-        ...f,
-        client: Array.isArray(f.client) ? f.client[0] : f.client
-      })));
+      const facturesData = (data || []) as RawFacture[];
+      setFactures(
+        facturesData.map((facture) => {
+          const client = Array.isArray(facture.client) ? facture.client[0] : facture.client;
+          return {
+            ...facture,
+            client: {
+              nom: client?.nom ?? '',
+              societe: client?.societe ?? '',
+            },
+          };
+        })
+      );
 
       const facturesPayees = facturesData.filter((f) => f.statut === 'payee');
       const facturesNonPayees = facturesData.filter(
@@ -151,6 +168,7 @@ export default function ComptabilitePage() {
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Période d'analyse</h2>
             <div className="flex flex-wrap gap-3 mb-4">
               <button
+                type="button"
                 onClick={() => handlePeriodeChange('mois')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   periodeType === 'mois'
@@ -161,6 +179,7 @@ export default function ComptabilitePage() {
                 Mois en cours
               </button>
               <button
+                type="button"
                 onClick={() => handlePeriodeChange('trimestre')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   periodeType === 'trimestre'
@@ -171,6 +190,7 @@ export default function ComptabilitePage() {
                 Trimestre
               </button>
               <button
+                type="button"
                 onClick={() => handlePeriodeChange('annee')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   periodeType === 'annee'
@@ -181,6 +201,7 @@ export default function ComptabilitePage() {
                 Année
               </button>
               <button
+                type="button"
                 onClick={() => setPeriodeType('personnalisee')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   periodeType === 'personnalisee'

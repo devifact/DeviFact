@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -79,8 +79,10 @@ export default function ProduitsPage() {
 
       setProduitsStandards(standards);
       setProduitsCustom(customs);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors du chargement des produits';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -98,7 +100,7 @@ export default function ProduitsPage() {
 
       if (error) throw error;
       setFournisseurs(data || []);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur lors du chargement des fournisseurs:', error);
     }
   };
@@ -169,8 +171,10 @@ export default function ProduitsPage() {
 
       closeModal();
       fetchProduits();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement du produit';
+      toast.error(message);
     }
   };
 
@@ -184,8 +188,10 @@ export default function ProduitsPage() {
       if (error) throw error;
       toast.success(produit.actif ? 'Produit désactivé' : 'Produit activé');
       fetchProduits();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de la mise a jour du produit';
+      toast.error(message);
     }
   };
 
@@ -201,8 +207,10 @@ export default function ProduitsPage() {
       if (error) throw error;
       toast.success('Produit supprimé');
       fetchProduits();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de la suppression du produit';
+      toast.error(message);
     }
   };
 
@@ -231,6 +239,7 @@ export default function ProduitsPage() {
               Gérer les fournisseurs
             </Link>
             <button
+              type="button"
               onClick={() => openModal()}
               className="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600 font-medium shadow-sm hover:shadow-md transition-all text-center whitespace-nowrap"
             >
@@ -316,12 +325,14 @@ export default function ProduitsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       <button
+                        type="button"
                         onClick={() => handleToggleActif(produit)}
                         className="text-gray-600 hover:text-gray-900"
                       >
                         {produit.actif ? 'Désactiver' : 'Activer'}
                       </button>
                       <button
+                        type="button"
                         onClick={() => openModal(produit)}
                         className="text-blue-600 hover:text-blue-900"
                       >
@@ -409,18 +420,21 @@ export default function ProduitsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       <button
+                        type="button"
                         onClick={() => handleToggleActif(produit)}
                         className="text-gray-600 hover:text-gray-900"
                       >
                         {produit.actif ? 'Désactiver' : 'Activer'}
                       </button>
                       <button
+                        type="button"
                         onClick={() => openModal(produit)}
                         className="text-blue-600 hover:text-blue-900"
                       >
                         Modifier
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(produit.id)}
                         className="text-red-600 hover:text-red-900"
                       >

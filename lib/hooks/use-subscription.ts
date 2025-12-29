@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../supabase';
-import { useAuth } from '../auth-context';
-import type { Database } from '../database.types';
+import { supabase } from '../supabase.ts';
+import { useAuth } from '../auth-context.tsx';
+import type { Database } from '../database.types.ts';
 
 type Abonnement = Database['public']['Tables']['abonnements']['Row'];
 

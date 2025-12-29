@@ -1,6 +1,6 @@
 'use client';
 
-import { usePremium } from '@/lib/hooks/use-premium';
+import { usePremium } from '@/lib/hooks/use-premium.ts';
 import { useRouter } from 'next/navigation';
 
 interface PremiumGuardProps {

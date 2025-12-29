@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { useAuth } from '@/lib/auth-context';
-import { usePremium } from '@/lib/hooks/use-premium';
-import { supabase } from '@/lib/supabase';
+import { DashboardLayout } from '@/components/dashboard-layout.tsx';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { usePremium } from '@/lib/hooks/use-premium.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 

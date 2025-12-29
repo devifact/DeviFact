@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
-import { useSubscription } from '@/lib/hooks/use-subscription';
+import { useAuth } from '@/lib/auth-context.tsx';
+import { useSubscription } from '@/lib/hooks/use-subscription.ts';
 
 export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
