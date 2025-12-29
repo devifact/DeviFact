@@ -34,8 +34,56 @@ function generateCode() {
   return randomValue.toString().padStart(OTP_LENGTH, '0');
 }
 
-function sanitizePhone(value: string) {
-  return value.replace(/\s+/g, '').trim();
+function normalizePhoneInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const cleaned = trimmed.replace(/[^\d+]/g, '');
+  if (cleaned.startsWith('+')) {
+    return `+${cleaned.slice(1).replace(/\+/g, '')}`;
+  }
+  return cleaned.replace(/\+/g, '');
+}
+
+function isSimpleSequence(value: string) {
+  if (!value) {
+    return true;
+  }
+
+  const uniqueDigits = new Set(value);
+  if (uniqueDigits.size === 1) {
+    return true;
+  }
+
+  const sequences = ['0123456789', '1234567890', '9876543210', '0987654321'];
+  return sequences.includes(value);
+}
+
+function isValidFrenchPhone(value: string) {
+  if (!value) {
+    return false;
+  }
+
+  let digitsForCheck = '';
+  if (value.startsWith('+')) {
+    if (!value.startsWith('+33')) {
+      return false;
+    }
+    const national = value.slice(3);
+    if (!/^[1-9]\d{8}$/.test(national)) {
+      return false;
+    }
+    digitsForCheck = `0${national}`;
+  } else {
+    if (!/^0[1-9]\d{8}$/.test(value)) {
+      return false;
+    }
+    digitsForCheck = value;
+  }
+
+  return !isSimpleSequence(digitsForCheck);
 }
 
 serve(async (req: Request) => {
@@ -72,9 +120,9 @@ serve(async (req: Request) => {
 
     const payload = await req.json();
     const rawPhone = typeof payload?.telephone === 'string' ? payload.telephone : '';
-    const telephone = sanitizePhone(rawPhone);
+    const telephone = normalizePhoneInput(rawPhone);
 
-    if (!telephone || telephone.length < 8) {
+    if (!isValidFrenchPhone(telephone)) {
       throw new Error('Numero de telephone invalide');
     }
 

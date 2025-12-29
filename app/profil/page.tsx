@@ -6,7 +6,12 @@ import { AddressAutocomplete } from '@/components/address-autocomplete';
 import { useAuth } from '@/lib/auth-context';
 import { useProfile } from '@/lib/hooks/use-profile';
 import { supabase } from '@/lib/supabase';
-import { isValidSiret, sanitizeDigits } from '@/lib/validation';
+import {
+  isValidSiret,
+  normalizePhoneInput,
+  sanitizeDigits,
+  validateFrenchPhone,
+} from '@/lib/validation';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -75,7 +80,9 @@ export default function ProfilPage() {
 
   useEffect(() => {
     if (!profile) return;
-    if (formData.telephone.trim() !== (profile.telephone || '')) {
+    const currentPhone = normalizePhoneInput(formData.telephone);
+    const profilePhone = normalizePhoneInput(profile.telephone || '');
+    if (currentPhone !== profilePhone) {
       setPhoneCodeRequested(false);
       setPhoneCode('');
       setPhoneMessage('');
@@ -105,7 +112,7 @@ export default function ProfilPage() {
       }
 
       const phoneMatchesProfile =
-        formData.telephone.trim() === (profile?.telephone || '');
+        normalizePhoneInput(formData.telephone) === normalizePhoneInput(profile?.telephone || '');
       const phoneVerified = !!profile?.telephone_verified && phoneMatchesProfile;
 
       const isComplete =
@@ -143,10 +150,16 @@ export default function ProfilPage() {
       return;
     }
 
+    const phoneValidation = validateFrenchPhone(phone);
+    if (!phoneValidation.isValid) {
+      setPhoneError('Numero de telephone invalide.');
+      return;
+    }
+
     try {
       setSendingPhoneCode(true);
       const { error } = await supabase.functions.invoke('send-phone-verification', {
-        body: { telephone: phone },
+        body: { telephone: phoneValidation.normalized },
       });
 
       if (error) {
@@ -289,9 +302,15 @@ export default function ProfilPage() {
     return null;
   }
 
-  const phoneMatchesProfile =
-    formData.telephone.trim() === (profile?.telephone || '');
+  const phoneInputNormalized = normalizePhoneInput(formData.telephone);
+  const profilePhoneNormalized = normalizePhoneInput(profile?.telephone || '');
+  const phoneMatchesProfile = phoneInputNormalized === profilePhoneNormalized;
   const phoneVerified = !!profile?.telephone_verified && phoneMatchesProfile;
+  const phoneValidation = validateFrenchPhone(formData.telephone);
+  const phoneIsValid = phoneValidation.isValid;
+  const phoneValidationMessage = formData.telephone.trim() && !phoneIsValid
+    ? 'Numero de telephone invalide'
+    : '';
   const hasPendingCode = !!profile?.telephone_verification_expires_at &&
     new Date(profile.telephone_verification_expires_at).getTime() > Date.now();
   const codeExpired = !!profile?.telephone_verification_expires_at &&
@@ -340,6 +359,17 @@ export default function ProfilPage() {
       return `${baseClasses} border-green-300 bg-green-50`;
     }
     return `${baseClasses} border-red-300 bg-red-50`;
+  };
+
+  const getPhoneFieldClassName = () => {
+    const baseClasses = "w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500";
+    if (!phoneInputNormalized) {
+      return `${baseClasses} bg-yellow-50 border-yellow-300`;
+    }
+    if (!phoneIsValid) {
+      return `${baseClasses} border-red-300 bg-red-50`;
+    }
+    return `${baseClasses} border-green-300 bg-green-50`;
   };
 
   return (
@@ -515,9 +545,11 @@ export default function ProfilPage() {
               <input
                 type="tel"
                 value={formData.telephone}
-                onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, telephone: normalizePhoneInput(e.target.value) })
+                }
                 required
-                className={getFieldClassName(formData.telephone)}
+                className={getPhoneFieldClassName()}
               />
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span
@@ -533,7 +565,7 @@ export default function ProfilPage() {
                   <button
                     type="button"
                     onClick={handleSendPhoneCode}
-                    disabled={sendingPhoneCode || !formData.telephone.trim()}
+                    disabled={sendingPhoneCode || !phoneIsValid}
                     className="text-sm px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {sendingPhoneCode
@@ -571,13 +603,15 @@ export default function ProfilPage() {
                       {verifyingPhoneCode ? 'Verification...' : 'Confirmer'}
                     </button>
                   </div>
-                  {phoneError && (
-                    <p className="text-sm text-red-600">{phoneError}</p>
-                  )}
-                  {phoneMessage && (
-                    <p className="text-sm text-green-600">{phoneMessage}</p>
-                  )}
                 </div>
+              )}
+              {(phoneError || phoneValidationMessage) && (
+                <p className="mt-2 text-sm text-red-600">
+                  {phoneError || phoneValidationMessage}
+                </p>
+              )}
+              {phoneMessage && (
+                <p className="mt-2 text-sm text-green-600">{phoneMessage}</p>
               )}
             </div>
 
