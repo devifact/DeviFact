@@ -62,6 +62,7 @@ CREATE OR REPLACE FUNCTION generate_facture_numero_fr(p_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_annee integer;
@@ -150,6 +151,7 @@ CREATE OR REPLACE FUNCTION generate_devis_numero_fr(p_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_annee integer;

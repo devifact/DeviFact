@@ -25,6 +25,7 @@ CREATE OR REPLACE FUNCTION generate_devis_number(p_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_count integer;
@@ -49,6 +50,7 @@ CREATE OR REPLACE FUNCTION generate_facture_number(p_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_count integer;
@@ -73,6 +75,7 @@ CREATE OR REPLACE FUNCTION update_devis_totals()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_total_ht decimal(10, 2);
@@ -104,6 +107,7 @@ CREATE OR REPLACE FUNCTION update_facture_totals()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_total_ht decimal(10, 2);
@@ -219,6 +223,7 @@ CREATE OR REPLACE FUNCTION has_active_subscription(p_user_id uuid)
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_subscription record;
@@ -247,6 +252,7 @@ $$;
 CREATE OR REPLACE FUNCTION prevent_locked_facture_modification()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = public
 AS $$
 BEGIN
   IF OLD.verrouille = true AND (

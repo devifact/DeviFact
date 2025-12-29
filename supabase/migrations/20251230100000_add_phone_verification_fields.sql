@@ -10,7 +10,10 @@ ALTER TABLE profiles
 
 -- Protect verification fields from client-side updates
 CREATE OR REPLACE FUNCTION protect_phone_verification_fields()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
   IF auth.role() <> 'service_role' THEN
     IF NEW.telephone IS DISTINCT FROM OLD.telephone THEN
@@ -40,7 +43,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trigger_protect_phone_verification_fields ON profiles;
 CREATE TRIGGER trigger_protect_phone_verification_fields

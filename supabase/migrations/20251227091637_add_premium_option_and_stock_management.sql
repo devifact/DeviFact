@@ -151,7 +151,11 @@ CREATE POLICY "Users can delete own stock movements"
 
 -- Fonction pour mettre à jour automatiquement le stock d'un produit
 CREATE OR REPLACE FUNCTION update_product_stock()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   -- Récupérer le stock actuel du produit
   SELECT stock_actuel INTO NEW.stock_avant
@@ -183,7 +187,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger pour mettre à jour le stock automatiquement
 DROP TRIGGER IF EXISTS trigger_update_product_stock ON mouvements_stock;
@@ -194,7 +198,11 @@ CREATE TRIGGER trigger_update_product_stock
 
 -- Fonction pour créer automatiquement des sorties de stock lors de la création d'une facture
 CREATE OR REPLACE FUNCTION create_stock_movements_from_facture()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
   ligne RECORD;
   produit_record RECORD;
@@ -235,7 +243,7 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger pour créer les mouvements de stock depuis les factures
 DROP TRIGGER IF EXISTS trigger_create_stock_from_facture ON factures;

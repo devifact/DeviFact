@@ -19,6 +19,7 @@ CREATE OR REPLACE FUNCTION generate_devis_number(p_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   RETURN generate_devis_numero_fr(p_user_id);
@@ -30,6 +31,7 @@ CREATE OR REPLACE FUNCTION generate_facture_number(p_user_id uuid)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   RETURN generate_facture_numero_fr(p_user_id);

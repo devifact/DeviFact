@@ -84,6 +84,7 @@ CREATE OR REPLACE FUNCTION initialize_default_products(p_user_id uuid, p_taux_tv
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   IF NOT EXISTS (
@@ -151,6 +152,7 @@ CREATE OR REPLACE FUNCTION create_default_products_on_profile()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
   PERFORM initialize_default_products(NEW.id, COALESCE(NEW.taux_tva, 20));
