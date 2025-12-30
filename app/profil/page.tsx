@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { AddressAutocomplete } from '@/components/address-autocomplete.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
-import { supabase, supabaseAnonKey, supabaseUrl } from '@/lib/supabase.ts';
+import { supabase } from '@/lib/supabase.ts';
 import {
   isValidSiret,
   normalizePhoneInput,
@@ -20,31 +20,13 @@ export default function ProfilPage() {
   const { profile, loading: profileLoading, updateProfile, refetchProfile } = useProfile();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-  const [phoneCode, setPhoneCode] = useState('');
-  const [phoneCodeRequested, setPhoneCodeRequested] = useState(false);
-  const [sendingPhoneCode, setSendingPhoneCode] = useState(false);
-  const [verifyingPhoneCode, setVerifyingPhoneCode] = useState(false);
+  const [confirmingPhone, setConfirmingPhone] = useState(false);
   const [phoneMessage, setPhoneMessage] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
-
-  const getAccessToken = async () => {
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-    if (!refreshError && refreshData.session?.access_token) {
-      return refreshData.session.access_token;
-    }
-
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !sessionData.session?.access_token) {
-      throw new Error('Session expiree. Reconnectez-vous.');
-    }
-
-    return sessionData.session.access_token;
-  };
-
 
   const [formData, setFormData] = useState({
     raison_sociale: '',
@@ -102,8 +84,6 @@ export default function ProfilPage() {
     const currentPhone = normalizePhoneInput(formData.telephone);
     const profilePhone = normalizePhoneInput(profile.telephone || '');
     if (currentPhone !== profilePhone) {
-      setPhoneCodeRequested(false);
-      setPhoneCode('');
       setPhoneMessage('');
       setPhoneError('');
     }
@@ -134,9 +114,11 @@ export default function ProfilPage() {
         return;
       }
 
-      const phoneMatchesProfile =
-        normalizePhoneInput(formData.telephone) === normalizePhoneInput(profile?.telephone || '');
+      const normalizedPhone = normalizePhoneInput(formData.telephone);
+      const profilePhone = normalizePhoneInput(profile?.telephone || '');
+      const phoneMatchesProfile = normalizedPhone === profilePhone;
       const phoneVerified = !!profile?.telephone_verified && phoneMatchesProfile;
+      const phoneChanged = normalizedPhone !== profilePhone;
 
       const isComplete =
         !!formData.raison_sociale &&
@@ -152,9 +134,17 @@ export default function ProfilPage() {
 
       await updateProfile({
         ...formData,
+        telephone: normalizedPhone,
         taux_tva: normalizedTvaRate,
         tva_applicable: tvaApplicable,
         profil_complete: isComplete,
+        telephone_verified: phoneChanged ? false : phoneVerified,
+        telephone_verification_code: null,
+        telephone_verification_expires_at: null,
+        telephone_verification_sent_at: null,
+        telephone_verification_attempts: 0,
+        telephone_verification_resend_count: 0,
+        telephone_verification_resend_window_start: null,
       });
 
       toast.success('Profil enregistré avec succès');
@@ -167,7 +157,7 @@ export default function ProfilPage() {
     }
   };
 
-  const handleSendPhoneCode = async () => {
+  const handleConfirmPhone = async () => {
     setPhoneMessage('');
     setPhoneError('');
 
@@ -184,119 +174,27 @@ export default function ProfilPage() {
     }
 
     try {
-      setSendingPhoneCode(true);
-      const accessToken = await getAccessToken();
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Configuration Supabase manquante.');
-      }
-
-      const requestBody = JSON.stringify({ telephone: phoneValidation.normalized });
-      const buildHeaders = (token: string) => ({
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: supabaseAnonKey,
+      setConfirmingPhone(true);
+      setFormData({ ...formData, telephone: phoneValidation.normalized });
+      await updateProfile({
+        telephone: phoneValidation.normalized,
+        telephone_verified: true,
+        telephone_verification_code: null,
+        telephone_verification_expires_at: null,
+        telephone_verification_sent_at: null,
+        telephone_verification_attempts: 0,
+        telephone_verification_resend_count: 0,
+        telephone_verification_resend_window_start: null,
       });
 
-      let response = await fetch(`${supabaseUrl}/functions/v1/send-phone-verification`, {
-        method: 'POST',
-        headers: buildHeaders(accessToken),
-        body: requestBody,
-      });
-
-      if (response.status === 401) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        if (refreshed.session?.access_token) {
-          response = await fetch(`${supabaseUrl}/functions/v1/send-phone-verification`, {
-            method: 'POST',
-            headers: buildHeaders(refreshed.session.access_token),
-            body: requestBody,
-          });
-        }
-      }
-
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => null);
-        if (response.status === 401) {
-          throw new Error('Session expiree. Reconnectez-vous.');
-        }
-        throw new Error(
-          errorPayload?.error ||
-            errorPayload?.message ||
-            'Erreur lors de l\'envoi du code.'
-        );
-      }
-
-      setPhoneCodeRequested(true);
-      setPhoneMessage('Code envoye par email.');
-      setPhoneCode('');
+      setPhoneMessage('Numero confirme.');
       await refetchProfile();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Erreur lors de l\'envoi du code.';
+        error instanceof Error ? error.message : 'Erreur lors de la confirmation.';
       setPhoneError(message);
     } finally {
-      setSendingPhoneCode(false);
-    }
-  };
-
-  const handleVerifyPhoneCode = async () => {
-    setPhoneMessage('');
-    setPhoneError('');
-
-    const code = phoneCode.trim();
-    if (!code) {
-      setPhoneError('Veuillez saisir le code recu par email.');
-      return;
-    }
-
-    try {
-      setVerifyingPhoneCode(true);
-      const accessToken = await getAccessToken();
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Configuration Supabase manquante.');
-      }
-
-      const requestBody = JSON.stringify({ code });
-      const buildHeaders = (token: string) => ({
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: supabaseAnonKey,
-      });
-
-      let response = await fetch(`${supabaseUrl}/functions/v1/verify-phone-verification`, {
-        method: 'POST',
-        headers: buildHeaders(accessToken),
-        body: requestBody,
-      });
-
-      if (response.status === 401) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        if (refreshed.session?.access_token) {
-          response = await fetch(`${supabaseUrl}/functions/v1/verify-phone-verification`, {
-            method: 'POST',
-            headers: buildHeaders(refreshed.session.access_token),
-            body: requestBody,
-          });
-        }
-      }
-
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => null);
-        if (response.status === 401) {
-          throw new Error('Session expiree. Reconnectez-vous.');
-        }
-        throw new Error(errorPayload?.error || errorPayload?.message || 'Code invalide.');
-      }
-
-      setPhoneMessage('Numero verifie.');
-      setPhoneCode('');
-      setPhoneCodeRequested(false);
-      await refetchProfile();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Code invalide.';
-      setPhoneError(message);
-    } finally {
-      setVerifyingPhoneCode(false);
+      setConfirmingPhone(false);
     }
   };
 
@@ -405,11 +303,6 @@ export default function ProfilPage() {
   const phoneValidationMessage = formData.telephone.trim() && !phoneIsValid
     ? 'Numero de telephone invalide'
     : '';
-  const hasPendingCode = !!profile?.telephone_verification_expires_at &&
-    new Date(profile.telephone_verification_expires_at).getTime() > Date.now();
-  const codeExpired = !!profile?.telephone_verification_expires_at &&
-    new Date(profile.telephone_verification_expires_at).getTime() <= Date.now();
-  const showCodeInput = !phoneVerified && (hasPendingCode || phoneCodeRequested);
   const siretDigits = sanitizeDigits(formData.siret, 14);
   const siretIsComplete = siretDigits.length === 14;
   const siretIsValid = siretIsComplete && isValidSiret(siretDigits);
@@ -656,52 +549,19 @@ export default function ProfilPage() {
                       : 'bg-yellow-100 text-yellow-800'
                   }`}
                 >
-                  {phoneVerified ? 'Numero verifie' : 'Numero non verifie'}
+                  {phoneVerified ? 'Numero confirme' : 'Numero non confirme'}
                 </span>
                 {!phoneVerified && (
                   <button
                     type="button"
-                    onClick={handleSendPhoneCode}
-                    disabled={sendingPhoneCode || !phoneIsValid}
+                    onClick={handleConfirmPhone}
+                    disabled={confirmingPhone || !phoneIsValid}
                     className="text-sm px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {sendingPhoneCode
-                      ? 'Envoi...'
-                      : hasPendingCode
-                        ? 'Renvoyer le code'
-                        : 'Valider le numero'}
+                    {confirmingPhone ? 'Confirmation...' : 'Confirmer le numero'}
                   </button>
                 )}
               </div>
-              {codeExpired && !phoneVerified && (
-                <p className="mt-2 text-sm text-orange-600">
-                  Code expire. Demandez un nouveau code.
-                </p>
-              )}
-              {showCodeInput && !phoneVerified && (
-                <div className="mt-3 space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Code de validation
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={phoneCode}
-                      onChange={(e) => setPhoneCode(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="Code recu par email"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleVerifyPhoneCode}
-                      disabled={verifyingPhoneCode}
-                      className="px-4 py-2 rounded-md bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {verifyingPhoneCode ? 'Verification...' : 'Confirmer'}
-                    </button>
-                  </div>
-                </div>
-              )}
               {(phoneError || phoneValidationMessage) && (
                 <p className="mt-2 text-sm text-red-600">
                   {phoneError || phoneValidationMessage}
