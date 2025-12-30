@@ -57,6 +57,10 @@ export default function ProfilPage() {
     }
 
     if (profile) {
+      const defaultTvaRate = typeof profile.taux_tva === 'number'
+        ? profile.taux_tva
+        : (profile.tva_applicable === false ? 0 : 20);
+
       setFormData({
         raison_sociale: profile.raison_sociale || '',
         nom: profile.nom || '',
@@ -67,8 +71,8 @@ export default function ProfilPage() {
         departement: profile.departement || '',
         pays: profile.pays || 'France',
         siret: sanitizeDigits(profile.siret || '', 14),
-        tva_applicable: profile.tva_applicable ?? true,
-        taux_tva: profile.taux_tva || 20,
+        tva_applicable: defaultTvaRate !== 0,
+        taux_tva: defaultTvaRate,
         email_contact: profile.email_contact || '',
         telephone: profile.telephone || '',
         logo_url: profile.logo_url || '',
@@ -103,6 +107,10 @@ export default function ProfilPage() {
     setSaving(true);
 
     try {
+      const normalizedTvaRate = Number.isFinite(formData.taux_tva)
+        ? formData.taux_tva
+        : 20;
+      const tvaApplicable = normalizedTvaRate !== 0;
       const siretValue = sanitizeDigits(formData.siret, 14);
       const siretValid = siretValue.length === 14 && isValidSiret(siretValue);
       if (!siretValid) {
@@ -129,6 +137,8 @@ export default function ProfilPage() {
 
       await updateProfile({
         ...formData,
+        taux_tva: normalizedTvaRate,
+        tva_applicable: tvaApplicable,
         profil_complete: isComplete,
       });
 
@@ -379,6 +389,9 @@ export default function ProfilPage() {
     return `${baseClasses} border-green-300 bg-green-50`;
   };
 
+  const tvaOptions = [0, 5.5, 10, 20];
+  const tvaNonApplicable = formData.taux_tva === 0;
+
   return (
     <DashboardLayout>
       <div>
@@ -623,31 +636,36 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={formData.tva_applicable}
-                  onChange={(e) => setFormData({ ...formData, tva_applicable: e.target.checked })}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium text-gray-700">TVA applicable</span>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Regime de TVA (taux par defaut)
               </label>
+              <select
+                value={String(formData.taux_tva)}
+                onChange={(e) => {
+                  const rate = parseFloat(e.target.value);
+                  setFormData({
+                    ...formData,
+                    taux_tva: rate,
+                    tva_applicable: rate !== 0,
+                  });
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {tvaOptions.map((rate) => (
+                  <option key={rate} value={rate}>
+                    {rate} %
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Ce taux est applique par defaut. Vous pourrez le modifier ligne par ligne.
+              </p>
+              {tvaNonApplicable && (
+                <p className="mt-1 text-xs text-orange-600">
+                  TVA non applicable, art. 293B du CGI
+                </p>
+              )}
             </div>
-
-            {formData.tva_applicable && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Taux TVA (%)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.taux_tva}
-                  onChange={(e) => setFormData({ ...formData, taux_tva: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
 
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">

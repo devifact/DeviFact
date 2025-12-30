@@ -51,9 +51,14 @@ export default function NouveauDevisPage() {
       designation: '',
       quantite: 1,
       prix_unitaire_ht: 0,
-      taux_tva: profile?.taux_tva || 20,
+      taux_tva: 20,
     }
   ]);
+  const tvaOptions = [0, 5.5, 10, 20];
+  const defaultTvaRate = typeof profile?.taux_tva === 'number'
+    ? profile.taux_tva
+    : (profile?.tva_applicable === false ? 0 : 20);
+  const tvaNonApplicable = defaultTvaRate === 0;
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -65,6 +70,15 @@ export default function NouveauDevisPage() {
       refetchProfile();
     }
   }, [user, authLoading, router, refetchProfile]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setLignes((current) =>
+      current.map((ligne) =>
+        ligne.designation ? ligne : { ...ligne, taux_tva: defaultTvaRate }
+      )
+    );
+  }, [profile, defaultTvaRate]);
 
   const fetchClients = useCallback(async () => {
     if (!user) return;
@@ -123,7 +137,7 @@ export default function NouveauDevisPage() {
         designation: '',
         quantite: 1,
         prix_unitaire_ht: 0,
-        taux_tva: profile?.taux_tva || 20,
+        taux_tva: defaultTvaRate,
       }
     ]);
   };
@@ -152,14 +166,16 @@ export default function NouveauDevisPage() {
 
   const handleSelectProduct = (id: string, product: ProduitSelection) => {
     const prixUnitaire = product?.prix_ht_defaut !== null ? Number(product.prix_ht_defaut) : 0;
-    const tauxTva = product?.taux_tva_defaut !== null ? Number(product.taux_tva_defaut) : 20;
+    const tauxTva = product?.taux_tva_defaut !== null
+      ? Number(product.taux_tva_defaut)
+      : defaultTvaRate;
 
     setLignes(lignes.map(l =>
       l.id === id ? {
         ...l,
         designation: product.designation,
         prix_unitaire_ht: Number.isFinite(prixUnitaire) ? prixUnitaire : 0,
-        taux_tva: Number.isFinite(tauxTva) ? tauxTva : 20,
+        taux_tva: Number.isFinite(tauxTva) ? tauxTva : defaultTvaRate,
         fournisseur_id: product.fournisseur_defaut_id || undefined,
         showProductSearch: false,
       } : l
@@ -437,17 +453,19 @@ export default function NouveauDevisPage() {
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           TVA %
                         </label>
-                        <input
-                          type="number"
-                          value={ligne.taux_tva}
-                          onChange={(e) => updateLigne(ligne.id, 'taux_tva', parseFloat(e.target.value) || 0)}
-                          min="0"
-                          max="100"
-                          step="0.1"
+                        <select
+                          value={String(ligne.taux_tva)}
+                          onChange={(e) => updateLigne(ligne.id, 'taux_tva', parseFloat(e.target.value))}
                           required
                           title="TVA %"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
-                        />
+                        >
+                          {tvaOptions.map((rate) => (
+                            <option key={rate} value={rate}>
+                              {rate} %
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="col-span-1 flex items-end">
@@ -487,6 +505,11 @@ export default function NouveauDevisPage() {
                     <span className="text-gray-900">Total TTC:</span>
                     <span className="text-blue-600">{totals.totalTTC.toFixed(2)} €</span>
                   </div>
+                  {tvaNonApplicable && (
+                    <p className="text-xs text-gray-500 pt-2">
+                      TVA non applicable, art. 293B du CGI
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

@@ -254,6 +254,11 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     return null;
   }
 
+  const defaultTvaRate = typeof facture.profile?.taux_tva === 'number'
+    ? facture.profile.taux_tva
+    : (facture.profile?.tva_applicable === false ? 0 : 20);
+  const tvaNonApplicable = defaultTvaRate === 0;
+
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto">
@@ -426,7 +431,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
                       <p>{facture.escompte}</p>
                     </div>
                   )}
-                  {facture.profile?.tva_applicable && (
+                  {tvaNonApplicable && (
                     <p className="mt-2 text-xs">
                       TVA non applicable, art. 293 B du CGI
                     </p>

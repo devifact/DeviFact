@@ -37,6 +37,7 @@ export default function ProduitsPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState<Produit | null>(null);
+  const tvaOptions = [0, 5.5, 10, 20];
 
   const [formData, setFormData] = useState({
     designation: '',
@@ -113,8 +114,10 @@ export default function ProduitsPage() {
         reference: produit.reference || '',
         categorie: produit.categorie || '',
         unite: produit.unite || 'unité',
-        prix_ht_defaut: produit.prix_ht_defaut || 0,
-        taux_tva_defaut: produit.taux_tva_defaut || 20,
+        prix_ht_defaut: produit.prix_ht_defaut ?? 0,
+        taux_tva_defaut: typeof produit.taux_tva_defaut === 'number'
+          ? produit.taux_tva_defaut
+          : 20,
         fournisseur_defaut_id: produit.fournisseur_defaut_id || '',
         actif: produit.actif !== false,
       });
@@ -307,7 +310,7 @@ export default function ProduitsPage() {
                       {produit.prix_ht_defaut?.toFixed(2) || '0.00'} €
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {produit.taux_tva_defaut || 20}%
+                      {(produit.taux_tva_defaut ?? 20)}%
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {produit.unite}
@@ -402,7 +405,7 @@ export default function ProduitsPage() {
                       {produit.prix_ht_defaut?.toFixed(2) || '0.00'} €
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {produit.taux_tva_defaut || 20}%
+                      {(produit.taux_tva_defaut ?? 20)}%
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {produit.unite}
@@ -516,14 +519,21 @@ export default function ProduitsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     TVA par défaut (%) *
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.taux_tva_defaut}
-                    onChange={(e) => setFormData({ ...formData, taux_tva_defaut: parseFloat(e.target.value) || 0 })}
+                  <select
+                    value={String(formData.taux_tva_defaut)}
+                    onChange={(e) => {
+                      const rate = Number.parseFloat(e.target.value);
+                      setFormData({ ...formData, taux_tva_defaut: Number.isNaN(rate) ? 0 : rate });
+                    }}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  >
+                    {tvaOptions.map((rate) => (
+                      <option key={rate} value={rate}>
+                        {rate}%
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

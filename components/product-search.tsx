@@ -185,7 +185,7 @@ export function ProductSearch({ onSelectProduct, placeholder = "Rechercher un pr
                         {product.prix_ht_defaut?.toFixed(2) || '0.00'} € HT
                       </div>
                       <div className="text-xs text-gray-500">
-                        TVA {product.taux_tva_defaut || 20}%
+                        TVA {(product.taux_tva_defaut ?? 20)}%
                       </div>
                     </div>
                   </div>

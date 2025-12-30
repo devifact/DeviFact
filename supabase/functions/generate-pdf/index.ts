@@ -19,6 +19,7 @@ type ProfileData = {
   email_contact?: string | null;
   siret?: string | null;
   tva_applicable?: boolean | null;
+  taux_tva?: number | null;
   tva_intracommunautaire?: string | null;
 };
 
@@ -76,6 +77,16 @@ function generateHtmlTemplate(
   const emissionDate = formatDate(type === 'devis' ? data.date_creation : data.date_emission);
   const validiteDate = type === 'devis' ? formatDate(data.date_validite) : '';
   const echeanceDate = type === 'facture' ? formatDate(data.date_echeance) : '';
+  const defaultTvaRate = typeof profile.taux_tva === 'number'
+    ? profile.taux_tva
+    : (profile.tva_applicable === false ? 0 : 20);
+  const tvaNonApplicable = defaultTvaRate === 0;
+  const tvaHeader = tvaNonApplicable
+    ? '<p><strong>TVA :</strong> TVA non applicable, art. 293B du CGI</p>'
+    : `<p><strong>TVA par defaut :</strong> ${defaultTvaRate}%</p>${profile.tva_intracommunautaire ? `<p><strong>TVA Intracommunautaire :</strong> ${profile.tva_intracommunautaire}</p>` : ''}`;
+  const tvaFooter = tvaNonApplicable
+    ? ' - TVA non applicable, art. 293B du CGI'
+    : (profile.tva_intracommunautaire ? ` - TVA Intracommunautaire : ${profile.tva_intracommunautaire}` : '');
 
   return `
 <!DOCTYPE html>
@@ -130,7 +141,7 @@ function generateHtmlTemplate(
       <p><strong>Téléphone :</strong> ${profile.telephone || ''}</p>
       <p><strong>Email :</strong> ${profile.email_contact || ''}</p>
       <p><strong>SIRET :</strong> ${profile.siret || ''}</p>
-      ${profile.tva_applicable ? `<p><strong>TVA Intracommunautaire :</strong> ${profile.tva_intracommunautaire || 'N/A'}</p>` : '<p><strong>TVA non applicable</strong></p>'}
+      ${tvaHeader}
     </div>
   </div>
 
@@ -201,7 +212,7 @@ function generateHtmlTemplate(
 
   <div class="footer">
     <p><strong>Mentions légales :</strong></p>
-    <p>${profile.raison_sociale || ''} - SIRET : ${profile.siret || ''} ${profile.tva_intracommunautaire ? `- TVA Intracommunautaire : ${profile.tva_intracommunautaire}` : '- TVA non applicable'}</p>
+    <p>${profile.raison_sociale || ''} - SIRET : ${profile.siret || ''}${tvaFooter}</p>
     <p>${profile.adresse || ''}, ${profile.code_postal || ''} ${profile.ville || ''}, ${profile.pays || 'France'}</p>
     ${type === 'facture' ? '<p><strong>Conditions de paiement :</strong> Paiement à 30 jours. En cas de retard de paiement, des pénalités égales à trois fois le taux d\'intérêt légal seront appliquées, ainsi qu\'une indemnité forfaitaire de 40€ pour frais de recouvrement.</p>' : ''}
     <p>${type === 'devis' ? '<strong>Validité du devis :</strong> Ce devis est valable jusqu\'au ' + validiteDate + '. Passé ce délai, il devra être renouvelé.' : ''}</p>

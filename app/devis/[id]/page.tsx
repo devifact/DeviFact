@@ -305,6 +305,11 @@ export default function DevisDetailPage() {
     return null;
   }
 
+  const defaultTvaRate = typeof profile.taux_tva === 'number'
+    ? profile.taux_tva
+    : (profile.tva_applicable === false ? 0 : 20);
+  const tvaNonApplicable = defaultTvaRate === 0;
+
   return (
     <DashboardLayout>
       <div className="max-w-5xl mx-auto">
@@ -373,10 +378,11 @@ export default function DevisDetailPage() {
                 <p className="text-gray-600">
                   <span className="font-medium">SIRET:</span> {profile.siret}
                 </p>
-                {profile.tva_applicable && (
-                  <p className="text-gray-600">
-                    <span className="font-medium">TVA applicable</span>
-                  </p>
+                <p className="text-gray-600">
+                  <span className="font-medium">Regime TVA:</span> {defaultTvaRate}%
+                </p>
+                {tvaNonApplicable && (
+                  <p className="text-gray-600">TVA non applicable, art. 293B du CGI</p>
                 )}
               </div>
             </div>
