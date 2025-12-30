@@ -9,7 +9,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? '';
 const SITE_URL_RAW = Deno.env.get('SITE_URL') ?? Deno.env.get('NEXT_PUBLIC_SITE_URL') ?? '';
@@ -108,7 +107,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       throw new Error('Supabase environment is not configured');
     }
     const siteUrl = normalizeSiteUrl(SITE_URL_RAW);
@@ -116,9 +115,14 @@ serve(async (req: Request) => {
       throw new Error('Site URL not configured');
     }
 
+    const authHeader = req.headers.get('Authorization') ?? '';
+    if (!authHeader) {
+      throw new Error('Non authentifie');
+    }
+
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: {
-        headers: { Authorization: req.headers.get('Authorization') ?? '' },
+        headers: { Authorization: authHeader },
       },
     });
 
@@ -132,18 +136,16 @@ serve(async (req: Request) => {
     }
 
     const payload = await req.json();
-    const rawPhone = typeof payload?.telephone === 'string'
-      ? payload.telephone
-      : (typeof payload?.phone === 'string' ? payload.phone : '');
+    const rawPhone = typeof payload?.phone === 'string'
+      ? payload.phone
+      : (typeof payload?.telephone === 'string' ? payload.telephone : '');
     const telephone = normalizePhoneInput(rawPhone);
 
     if (!isValidFrenchPhone(telephone)) {
       throw new Error('Numero de telephone invalide');
     }
 
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    const { data: profile, error: profileError } = await adminClient
+    const { data: profile, error: profileError } = await supabaseClient
       .from('profiles')
       .select(
         'telephone_verification_sent_at, telephone_verification_resend_count, telephone_verification_resend_window_start'
@@ -182,19 +184,14 @@ serve(async (req: Request) => {
     const tokenHash = await hashCode(token);
     const expiresAt = new Date(now.getTime() + TOKEN_TTL_MS);
 
-    const { error: updateError } = await adminClient
-      .from('profiles')
-      .update({
-        telephone,
-        telephone_verified: false,
-        telephone_verification_code: tokenHash,
-        telephone_verification_expires_at: expiresAt.toISOString(),
-        telephone_verification_sent_at: now.toISOString(),
-        telephone_verification_attempts: 0,
-        telephone_verification_resend_count: resendCount,
-        telephone_verification_resend_window_start: windowStart.toISOString(),
-      })
-      .eq('id', user.id);
+    const { error: updateError } = await supabaseClient.rpc('request_phone_verification', {
+      p_phone: telephone,
+      p_code_hash: tokenHash,
+      p_expires_at: expiresAt.toISOString(),
+      p_sent_at: now.toISOString(),
+      p_resend_count: resendCount,
+      p_resend_window_start: windowStart.toISOString(),
+    });
 
     if (updateError) throw updateError;
 

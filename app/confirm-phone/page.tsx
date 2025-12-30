@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase.ts';
+import { supabase, supabaseAnonKey, supabaseUrl } from '@/lib/supabase.ts';
 
 type ConfirmationStatus = 'loading' | 'success' | 'error';
 
@@ -23,15 +23,43 @@ export default function ConfirmPhonePage() {
     let cancelled = false;
 
     const verifyToken = async () => {
-      const { error } = await supabase.functions.invoke('verify-phone-verification', {
-        body: { token },
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (sessionError || !accessToken) {
+        if (cancelled) return;
+        setStatus('error');
+        setMessage('Veuillez vous connecter pour confirmer votre numero.');
+        return;
+      }
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        if (cancelled) return;
+        setStatus('error');
+        setMessage('Configuration Supabase invalide.');
+        return;
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/verify-phone-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({ token }),
       });
 
+      const responseBody = await response.json().catch(() => ({}));
       if (cancelled) return;
 
-      if (error) {
+      if (!response.ok) {
+        const errorMessage =
+          typeof responseBody?.error === 'string'
+            ? responseBody.error
+            : 'Erreur lors de la confirmation.';
         setStatus('error');
-        setMessage(error.message || 'Erreur lors de la confirmation.');
+        setMessage(errorMessage);
         return;
       }
 

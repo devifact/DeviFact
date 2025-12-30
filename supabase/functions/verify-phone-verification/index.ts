@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
 const encoder = new TextEncoder();
 
@@ -33,8 +33,12 @@ serve(async (req: Request) => {
   }
 
   try {
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       throw new Error('Supabase environment is not configured');
+    }
+    const authHeader = req.headers.get('Authorization') ?? '';
+    if (!authHeader) {
+      throw new Error('Non authentifie');
     }
     const payload = await req.json();
     const rawToken = typeof payload?.token === 'string' ? payload.token : '';
@@ -44,51 +48,25 @@ serve(async (req: Request) => {
       throw new Error('Token invalide');
     }
 
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: { Authorization: authHeader },
+      },
+    });
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+      throw new Error('Non authentifie');
+    }
+
     const tokenHash = await hashCode(token);
-    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    const { data: profile, error: profileError } = await adminClient
-      .from('profiles')
-      .select('id, telephone_verification_expires_at')
-      .eq('telephone_verification_code', tokenHash)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-    if (!profile) {
-      throw new Error('Lien invalide ou expire.');
-    }
-
-    const expiresAt = profile.telephone_verification_expires_at
-      ? new Date(profile.telephone_verification_expires_at)
-      : null;
-    if (!expiresAt || expiresAt.getTime() < Date.now()) {
-      await adminClient
-        .from('profiles')
-        .update({
-          telephone_verification_code: null,
-          telephone_verification_expires_at: null,
-          telephone_verification_sent_at: null,
-          telephone_verification_attempts: 0,
-          telephone_verification_resend_count: 0,
-          telephone_verification_resend_window_start: null,
-        })
-        .eq('id', profile.id);
-
-      throw new Error('Lien expire. Veuillez renvoyer la confirmation.');
-    }
-
-    const { error: updateError } = await adminClient
-      .from('profiles')
-      .update({
-        telephone_verified: true,
-        telephone_verification_code: null,
-        telephone_verification_expires_at: null,
-        telephone_verification_sent_at: null,
-        telephone_verification_attempts: 0,
-        telephone_verification_resend_count: 0,
-        telephone_verification_resend_window_start: null,
-      })
-      .eq('id', profile.id);
+    const { error: updateError } = await supabaseClient.rpc('confirm_phone_verification', {
+      p_code_hash: tokenHash,
+    });
 
     if (updateError) throw updateError;
 

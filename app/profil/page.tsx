@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { AddressAutocomplete } from '@/components/address-autocomplete.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
-import { supabase } from '@/lib/supabase.ts';
+import { supabase, supabaseAnonKey, supabaseUrl } from '@/lib/supabase.ts';
 import {
   isValidSiret,
   normalizePhoneInput,
@@ -174,12 +174,34 @@ export default function ProfilPage() {
       setConfirmingPhone(true);
       setFormData({ ...formData, telephone: phoneValidation.normalized });
 
-      const { error } = await supabase.functions.invoke('send-phone-verification', {
-        body: { telephone: phoneValidation.normalized },
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+
+      if (sessionError || !accessToken) {
+        throw new Error('Session expiree. Reconnectez-vous puis reessayez.');
+      }
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Configuration Supabase invalide.');
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-phone-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          apikey: supabaseAnonKey,
+        },
+        body: JSON.stringify({ phone: phoneValidation.normalized }),
       });
 
-      if (error) {
-        throw error;
+      const responseBody = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const errorMessage =
+          typeof responseBody?.error === 'string'
+            ? responseBody.error
+            : 'Erreur lors de l\'envoi du lien.';
+        throw new Error(errorMessage);
       }
 
       setPhoneMessage('Email de confirmation envoye. Verifiez votre boite.');
