@@ -31,6 +31,21 @@ export default function ProfilPage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState('');
 
+  const getAccessToken = async () => {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+    if (!refreshError && refreshData.session?.access_token) {
+      return refreshData.session.access_token;
+    }
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData.session?.access_token) {
+      throw new Error('Session expiree. Reconnectez-vous.');
+    }
+
+    return sessionData.session.access_token;
+  };
+
+
   const [formData, setFormData] = useState({
     raison_sociale: '',
     nom: '',
@@ -170,10 +185,7 @@ export default function ProfilPage() {
 
     try {
       setSendingPhoneCode(true);
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.access_token) {
-        throw new Error('Session expirée. Reconnectez-vous.');
-      }
+      const accessToken = await getAccessToken();
       if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error('Configuration Supabase manquante.');
       }
@@ -182,7 +194,7 @@ export default function ProfilPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           apikey: supabaseAnonKey,
         },
         body: JSON.stringify({ telephone: phoneValidation.normalized }),
@@ -190,7 +202,15 @@ export default function ProfilPage() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null);
-        throw new Error(errorPayload?.error || 'Erreur lors de l’envoi du code.');
+        if (response.status === 401 && errorPayload?.message === 'Invalid JWT') {
+          await supabase.auth.signOut();
+          throw new Error('Session expiree. Reconnectez-vous.');
+        }
+        throw new Error(
+          errorPayload?.error ||
+            errorPayload?.message ||
+            'Erreur lors de l\'envoi du code.'
+        );
       }
 
       setPhoneCodeRequested(true);
@@ -218,10 +238,7 @@ export default function ProfilPage() {
 
     try {
       setVerifyingPhoneCode(true);
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.access_token) {
-        throw new Error('Session expirée. Reconnectez-vous.');
-      }
+      const accessToken = await getAccessToken();
       if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error('Configuration Supabase manquante.');
       }
@@ -230,7 +247,7 @@ export default function ProfilPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
           apikey: supabaseAnonKey,
         },
         body: JSON.stringify({ code }),
@@ -238,7 +255,11 @@ export default function ProfilPage() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null);
-        throw new Error(errorPayload?.error || 'Code invalide.');
+        if (response.status === 401 && errorPayload?.message === 'Invalid JWT') {
+          await supabase.auth.signOut();
+          throw new Error('Session expiree. Reconnectez-vous.');
+        }
+        throw new Error(errorPayload?.error || errorPayload?.message || 'Code invalide.');
       }
 
       setPhoneMessage('Numero verifie.');
