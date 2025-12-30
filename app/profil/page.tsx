@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { AddressAutocomplete } from '@/components/address-autocomplete.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
-import { supabase } from '@/lib/supabase.ts';
+import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
 import {
   isValidSiret,
   normalizePhoneInput,
@@ -176,7 +176,10 @@ export default function ProfilPage() {
       }
       const { error } = await supabase.functions.invoke('send-phone-verification', {
         body: { telephone: phoneValidation.normalized },
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: supabaseAnonKey,
+        },
       });
 
       if (error) {
@@ -214,7 +217,10 @@ export default function ProfilPage() {
       }
       const { error } = await supabase.functions.invoke('verify-phone-verification', {
         body: { code },
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: supabaseAnonKey,
+        },
       });
 
       if (error) {
