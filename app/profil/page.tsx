@@ -170,8 +170,13 @@ export default function ProfilPage() {
 
     try {
       setSendingPhoneCode(true);
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.access_token) {
+        throw new Error('Session expirée. Reconnectez-vous.');
+      }
       const { error } = await supabase.functions.invoke('send-phone-verification', {
         body: { telephone: phoneValidation.normalized },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
       if (error) {
@@ -203,8 +208,13 @@ export default function ProfilPage() {
 
     try {
       setVerifyingPhoneCode(true);
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.access_token) {
+        throw new Error('Session expirée. Reconnectez-vous.');
+      }
       const { error } = await supabase.functions.invoke('verify-phone-verification', {
         body: { code },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
       if (error) {
