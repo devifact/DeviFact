@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { AddressAutocomplete } from '@/components/address-autocomplete.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
-import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
+import { supabase, supabaseAnonKey, supabaseUrl } from '@/lib/supabase.ts';
 import {
   isValidSiret,
   normalizePhoneInput,
@@ -174,16 +174,23 @@ export default function ProfilPage() {
       if (sessionError || !session?.access_token) {
         throw new Error('Session expirée. Reconnectez-vous.');
       }
-      const { error } = await supabase.functions.invoke('send-phone-verification', {
-        body: { telephone: phoneValidation.normalized },
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Configuration Supabase manquante.');
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-phone-verification`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
           apikey: supabaseAnonKey,
         },
+        body: JSON.stringify({ telephone: phoneValidation.normalized }),
       });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => null);
+        throw new Error(errorPayload?.error || 'Erreur lors de l’envoi du code.');
       }
 
       setPhoneCodeRequested(true);
@@ -215,16 +222,23 @@ export default function ProfilPage() {
       if (sessionError || !session?.access_token) {
         throw new Error('Session expirée. Reconnectez-vous.');
       }
-      const { error } = await supabase.functions.invoke('verify-phone-verification', {
-        body: { code },
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Configuration Supabase manquante.');
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/verify-phone-verification`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
           apikey: supabaseAnonKey,
         },
+        body: JSON.stringify({ code }),
       });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => null);
+        throw new Error(errorPayload?.error || 'Code invalide.');
       }
 
       setPhoneMessage('Numero verifie.');
