@@ -1,4 +1,4 @@
--- Allow manual phone confirmation while keeping verification fields server-managed.
+-- Enforce email-based phone confirmation while keeping verification fields server-managed.
 CREATE OR REPLACE FUNCTION public.protect_phone_verification_fields()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -15,18 +15,16 @@ BEGIN
       NEW.telephone_verification_resend_count := 0;
       NEW.telephone_verification_resend_window_start := null;
     ELSE
-      IF (NEW.telephone_verification_code IS DISTINCT FROM OLD.telephone_verification_code
-          AND NEW.telephone_verification_code IS NOT NULL)
-        OR (NEW.telephone_verification_expires_at IS DISTINCT FROM OLD.telephone_verification_expires_at
-          AND NEW.telephone_verification_expires_at IS NOT NULL)
-        OR (NEW.telephone_verification_sent_at IS DISTINCT FROM OLD.telephone_verification_sent_at
-          AND NEW.telephone_verification_sent_at IS NOT NULL)
-        OR (NEW.telephone_verification_attempts IS DISTINCT FROM OLD.telephone_verification_attempts
-          AND COALESCE(NEW.telephone_verification_attempts, 0) <> 0)
-        OR (NEW.telephone_verification_resend_count IS DISTINCT FROM OLD.telephone_verification_resend_count
-          AND COALESCE(NEW.telephone_verification_resend_count, 0) <> 0)
-        OR (NEW.telephone_verification_resend_window_start IS DISTINCT FROM OLD.telephone_verification_resend_window_start
-          AND NEW.telephone_verification_resend_window_start IS NOT NULL)
+      IF NEW.telephone_verified IS DISTINCT FROM OLD.telephone_verified THEN
+        RAISE EXCEPTION 'Telephone verification must be confirmed via email';
+      END IF;
+
+      IF NEW.telephone_verification_code IS DISTINCT FROM OLD.telephone_verification_code
+        OR NEW.telephone_verification_expires_at IS DISTINCT FROM OLD.telephone_verification_expires_at
+        OR NEW.telephone_verification_sent_at IS DISTINCT FROM OLD.telephone_verification_sent_at
+        OR NEW.telephone_verification_attempts IS DISTINCT FROM OLD.telephone_verification_attempts
+        OR NEW.telephone_verification_resend_count IS DISTINCT FROM OLD.telephone_verification_resend_count
+        OR NEW.telephone_verification_resend_window_start IS DISTINCT FROM OLD.telephone_verification_resend_window_start
       THEN
         RAISE EXCEPTION 'Telephone verification fields are managed server-side';
       END IF;

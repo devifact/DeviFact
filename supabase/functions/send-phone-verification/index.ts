@@ -12,9 +12,10 @@ const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? '';
+const SITE_URL_RAW = Deno.env.get('SITE_URL') ?? Deno.env.get('NEXT_PUBLIC_SITE_URL') ?? '';
 
-const OTP_LENGTH = 6;
-const OTP_TTL_MS = 5 * 60 * 1000;
+const TOKEN_TTL_MS = 15 * 60 * 1000;
+const TOKEN_BYTES = 32;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const RESEND_WINDOW_MS = 30 * 60 * 1000;
 const RESEND_LIMIT = 5;
@@ -29,9 +30,17 @@ async function hashCode(code: string) {
   return btoa(hashString);
 }
 
-function generateCode() {
-  const randomValue = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
-  return randomValue.toString().padStart(OTP_LENGTH, '0');
+function generateToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(TOKEN_BYTES));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function normalizeSiteUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
 function normalizePhoneInput(value: string) {
@@ -102,6 +111,10 @@ serve(async (req: Request) => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('Supabase environment is not configured');
     }
+    const siteUrl = normalizeSiteUrl(SITE_URL_RAW);
+    if (!siteUrl) {
+      throw new Error('Site URL not configured');
+    }
 
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: {
@@ -119,7 +132,9 @@ serve(async (req: Request) => {
     }
 
     const payload = await req.json();
-    const rawPhone = typeof payload?.telephone === 'string' ? payload.telephone : '';
+    const rawPhone = typeof payload?.telephone === 'string'
+      ? payload.telephone
+      : (typeof payload?.phone === 'string' ? payload.phone : '');
     const telephone = normalizePhoneInput(rawPhone);
 
     if (!isValidFrenchPhone(telephone)) {
@@ -144,7 +159,7 @@ serve(async (req: Request) => {
       : null;
 
     if (sentAt && now.getTime() - sentAt.getTime() < RESEND_COOLDOWN_MS) {
-      throw new Error('Veuillez attendre avant de renvoyer un code');
+      throw new Error('Veuillez attendre avant de renvoyer un lien');
     }
 
     let resendCount = profile?.telephone_verification_resend_count ?? 0;
@@ -158,21 +173,21 @@ serve(async (req: Request) => {
     }
 
     if (resendCount >= RESEND_LIMIT) {
-      throw new Error('Trop de demandes de code. Reessayez plus tard.');
+      throw new Error('Trop de demandes de lien. Reessayez plus tard.');
     }
 
     resendCount += 1;
 
-    const code = generateCode();
-    const codeHash = await hashCode(code);
-    const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
+    const token = generateToken();
+    const tokenHash = await hashCode(token);
+    const expiresAt = new Date(now.getTime() + TOKEN_TTL_MS);
 
     const { error: updateError } = await adminClient
       .from('profiles')
       .update({
         telephone,
         telephone_verified: false,
-        telephone_verification_code: codeHash,
+        telephone_verification_code: tokenHash,
         telephone_verification_expires_at: expiresAt.toISOString(),
         telephone_verification_sent_at: now.toISOString(),
         telephone_verification_attempts: 0,
@@ -192,6 +207,31 @@ serve(async (req: Request) => {
       throw new Error('Email provider not configured');
     }
 
+    const confirmationUrl = `${siteUrl}/confirm-phone?token=${encodeURIComponent(token)}`;
+    const emailText = [
+      'Bonjour,',
+      '',
+      'Pour confirmer votre numero de telephone, cliquez sur ce lien :',
+      confirmationUrl,
+      '',
+      'Ce lien expire dans 15 minutes.',
+    ].join('\n');
+    const emailHtml = `
+      <p>Bonjour,</p>
+      <p>Pour confirmer votre numero de telephone, cliquez sur ce bouton :</p>
+      <p>
+        <a
+          href="${confirmationUrl}"
+          style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;"
+        >
+          Confirmer mon numero
+        </a>
+      </p>
+      <p>Si le bouton ne fonctionne pas, copiez ce lien :</p>
+      <p><a href="${confirmationUrl}">${confirmationUrl}</a></p>
+      <p>Ce lien expire dans 15 minutes.</p>
+    `;
+
     const emailResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -202,7 +242,8 @@ serve(async (req: Request) => {
         from: RESEND_FROM_EMAIL,
         to: [email],
         subject: 'Validation du numero de telephone',
-        text: `Votre code de validation du numero de telephone : ${code}`,
+        text: emailText,
+        html: emailHtml,
       }),
     });
 

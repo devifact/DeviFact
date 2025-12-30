@@ -118,7 +118,6 @@ export default function ProfilPage() {
       const profilePhone = normalizePhoneInput(profile?.telephone || '');
       const phoneMatchesProfile = normalizedPhone === profilePhone;
       const phoneVerified = !!profile?.telephone_verified && phoneMatchesProfile;
-      const phoneChanged = normalizedPhone !== profilePhone;
 
       const isComplete =
         !!formData.raison_sociale &&
@@ -138,13 +137,6 @@ export default function ProfilPage() {
         taux_tva: normalizedTvaRate,
         tva_applicable: tvaApplicable,
         profil_complete: isComplete,
-        telephone_verified: phoneChanged ? false : phoneVerified,
-        telephone_verification_code: null,
-        telephone_verification_expires_at: null,
-        telephone_verification_sent_at: null,
-        telephone_verification_attempts: 0,
-        telephone_verification_resend_count: 0,
-        telephone_verification_resend_window_start: null,
       });
 
       toast.success('Profil enregistré avec succès');
@@ -161,6 +153,11 @@ export default function ProfilPage() {
     setPhoneMessage('');
     setPhoneError('');
 
+    if (!user) {
+      setPhoneError('Veuillez vous reconnecter.');
+      return;
+    }
+
     const phone = formData.telephone.trim();
     if (!phone) {
       setPhoneError('Veuillez saisir un numero de telephone.');
@@ -176,22 +173,20 @@ export default function ProfilPage() {
     try {
       setConfirmingPhone(true);
       setFormData({ ...formData, telephone: phoneValidation.normalized });
-      await updateProfile({
-        telephone: phoneValidation.normalized,
-        telephone_verified: true,
-        telephone_verification_code: null,
-        telephone_verification_expires_at: null,
-        telephone_verification_sent_at: null,
-        telephone_verification_attempts: 0,
-        telephone_verification_resend_count: 0,
-        telephone_verification_resend_window_start: null,
+
+      const { error } = await supabase.functions.invoke('send-phone-verification', {
+        body: { telephone: phoneValidation.normalized },
       });
 
-      setPhoneMessage('Numero confirme.');
+      if (error) {
+        throw error;
+      }
+
+      setPhoneMessage('Email de confirmation envoye. Verifiez votre boite.');
       await refetchProfile();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Erreur lors de la confirmation.';
+        error instanceof Error ? error.message : 'Erreur lors de l\'envoi du lien.';
       setPhoneError(message);
     } finally {
       setConfirmingPhone(false);
@@ -558,7 +553,7 @@ export default function ProfilPage() {
                     disabled={confirmingPhone || !phoneIsValid}
                     className="text-sm px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {confirmingPhone ? 'Confirmation...' : 'Confirmer le numero'}
+                    {confirmingPhone ? 'Envoi...' : 'Envoyer le lien'}
                   </button>
                 )}
               </div>

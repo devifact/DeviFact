@@ -8,10 +8,7 @@ const corsHeaders = {
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-
-const OTP_MAX_ATTEMPTS = 5;
 
 const encoder = new TextEncoder();
 
@@ -36,85 +33,48 @@ serve(async (req: Request) => {
   }
 
   try {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       throw new Error('Supabase environment is not configured');
     }
-
-    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: { Authorization: req.headers.get('Authorization') ?? '' },
-      },
-    });
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
-
-    if (userError || !user) {
-      throw new Error('Non authentifie');
-    }
-
     const payload = await req.json();
-    const rawCode = typeof payload?.code === 'string' ? payload.code : '';
-    const code = rawCode.replace(/\s+/g, '').trim();
+    const rawToken = typeof payload?.token === 'string' ? payload.token : '';
+    const token = rawToken.trim();
 
-    if (!code || code.length < 4) {
-      throw new Error('Code invalide');
+    if (!token) {
+      throw new Error('Token invalide');
     }
 
+    const tokenHash = await hashCode(token);
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select(
-        'telephone_verification_code, telephone_verification_expires_at, telephone_verification_attempts'
-      )
-      .eq('id', user.id)
-      .single();
+      .select('id, telephone_verification_expires_at')
+      .eq('telephone_verification_code', tokenHash)
+      .maybeSingle();
 
     if (profileError) throw profileError;
-
-    if (!profile?.telephone_verification_code || !profile?.telephone_verification_expires_at) {
-      throw new Error('Aucun code en attente');
+    if (!profile) {
+      throw new Error('Lien invalide ou expire.');
     }
 
-    const expiresAt = new Date(profile.telephone_verification_expires_at);
-    if (expiresAt.getTime() < Date.now()) {
+    const expiresAt = profile.telephone_verification_expires_at
+      ? new Date(profile.telephone_verification_expires_at)
+      : null;
+    if (!expiresAt || expiresAt.getTime() < Date.now()) {
       await adminClient
         .from('profiles')
         .update({
           telephone_verification_code: null,
           telephone_verification_expires_at: null,
-          telephone_verification_attempts: 0,
           telephone_verification_sent_at: null,
+          telephone_verification_attempts: 0,
+          telephone_verification_resend_count: 0,
+          telephone_verification_resend_window_start: null,
         })
-        .eq('id', user.id);
+        .eq('id', profile.id);
 
-      throw new Error('Code expire. Veuillez en demander un nouveau.');
-    }
-
-    const codeHash = await hashCode(code);
-    if (codeHash !== profile.telephone_verification_code) {
-      const attempts = (profile.telephone_verification_attempts ?? 0) + 1;
-
-      const updates: Record<string, unknown> = {
-        telephone_verification_attempts: attempts,
-      };
-
-      if (attempts >= OTP_MAX_ATTEMPTS) {
-        updates.telephone_verification_code = null;
-        updates.telephone_verification_expires_at = null;
-        updates.telephone_verification_sent_at = null;
-      }
-
-      await adminClient.from('profiles').update(updates).eq('id', user.id);
-
-      throw new Error(
-        attempts >= OTP_MAX_ATTEMPTS
-          ? 'Trop de tentatives. Veuillez renvoyer un code.'
-          : 'Code invalide'
-      );
+      throw new Error('Lien expire. Veuillez renvoyer la confirmation.');
     }
 
     const { error: updateError } = await adminClient
@@ -128,7 +88,7 @@ serve(async (req: Request) => {
         telephone_verification_resend_count: 0,
         telephone_verification_resend_window_start: null,
       })
-      .eq('id', user.id);
+      .eq('id', profile.id);
 
     if (updateError) throw updateError;
 

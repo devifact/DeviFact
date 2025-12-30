@@ -11,6 +11,7 @@ Votre abonnement Stripe de base doit déjà être configuré et fonctionnel.
 Connectez-vous à votre [Dashboard Stripe](https://dashboard.stripe.com) et créez deux nouveaux prix **récurrents** :
 
 #### Prix Mensuel Premium
+
 - Produit : "Option Premium DevisFact" (créez-le si nécessaire)
 - Prix : **14,90 €**
 - Type : **Récurrent**
@@ -18,6 +19,7 @@ Connectez-vous à votre [Dashboard Stripe](https://dashboard.stripe.com) et cré
 - Notez l'ID du prix (commence par `price_...`)
 
 #### Prix Annuel Premium
+
 - Produit : "Option Premium DevisFact" (même produit)
 - Prix : **149 €**
 - Type : **Récurrent**
@@ -34,6 +36,7 @@ STRIPE_PREMIUM_PRICE_ANNUAL=price_xxxxxxxxxxxxx   # Votre ID de prix annuel
 ```
 
 **Comment les ajouter :**
+
 1. Allez dans votre projet Supabase
 2. Paramètres → Edge Functions
 3. Ajoutez les variables d'environnement
@@ -68,11 +71,13 @@ Une fois l'abonnement premium actif :
 ## Règles d'Accès Premium
 
 ### ❌ Accès REFUSÉ si :
+
 - Utilisateur en période d'essai
 - Abonnement principal non actif
 - Option premium non souscrite
 
 ### ✅ Accès AUTORISÉ si :
+
 - Abonnement principal = **actif**
 - Option premium = **active**
 - Paiement premium = **à jour**
@@ -80,6 +85,7 @@ Une fois l'abonnement premium actif :
 ## Fonctionnalités Premium
 
 ### Page Comptabilité (`/comptabilite`)
+
 - Calcul automatique du total encaissé
 - Calcul automatique du total à encaisser
 - Taux d'encaissement
@@ -87,6 +93,7 @@ Une fois l'abonnement premium actif :
 - Liste détaillée des factures
 
 ### Page Gestion des Stocks (`/stocks`)
+
 - Création d'entrées de stock (avec fournisseur)
 - Création de sorties de stock
 - Sorties automatiques lors de l'émission de factures
@@ -97,19 +104,24 @@ Une fois l'abonnement premium actif :
 ## Dépannage
 
 ### "Les prix premium Stripe ne sont pas configurés"
+
 → Vérifiez que vous avez bien ajouté `STRIPE_PREMIUM_PRICE_MONTHLY` et `STRIPE_PREMIUM_PRICE_ANNUAL` aux variables d'environnement de vos Edge Functions.
 
 ### "L'option premium n'est pas disponible pendant la période d'essai"
+
 → Normal ! L'utilisateur doit d'abord souscrire à l'abonnement principal.
 
 ### "Votre abonnement principal doit être actif"
+
 → L'abonnement de base doit être payant et actif avant de pouvoir ajouter l'option premium.
 
 ### Les pages premium sont bloquées
+
 → Vérifiez dans la table `abonnements` que :
-  - `option_premium_active` = true
-  - `statut` = 'active'
-  - `date_fin_premium` > date actuelle
+
+- `option_premium_active` = true
+- `statut` = 'active'
+- `date_fin_premium` > date actuelle
 
 ## Structure Tarifaire
 
@@ -122,6 +134,7 @@ Une fois l'abonnement premium actif :
 ## Support
 
 Pour toute question sur la configuration de l'option premium :
+
 1. Vérifiez que Stripe est correctement configuré pour l'abonnement de base
 2. Assurez-vous que les variables d'environnement premium sont définies
 3. Testez avec les cartes de test Stripe
