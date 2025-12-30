@@ -190,20 +190,33 @@ export default function ProfilPage() {
         throw new Error('Configuration Supabase manquante.');
       }
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/send-phone-verification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-          apikey: supabaseAnonKey,
-        },
-        body: JSON.stringify({ telephone: phoneValidation.normalized }),
+      const requestBody = JSON.stringify({ telephone: phoneValidation.normalized });
+      const buildHeaders = (token: string) => ({
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
       });
+
+      let response = await fetch(`${supabaseUrl}/functions/v1/send-phone-verification`, {
+        method: 'POST',
+        headers: buildHeaders(accessToken),
+        body: requestBody,
+      });
+
+      if (response.status === 401) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed.session?.access_token) {
+          response = await fetch(`${supabaseUrl}/functions/v1/send-phone-verification`, {
+            method: 'POST',
+            headers: buildHeaders(refreshed.session.access_token),
+            body: requestBody,
+          });
+        }
+      }
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null);
-        if (response.status === 401 && errorPayload?.message === 'Invalid JWT') {
-          await supabase.auth.signOut();
+        if (response.status === 401) {
           throw new Error('Session expiree. Reconnectez-vous.');
         }
         throw new Error(
@@ -243,20 +256,33 @@ export default function ProfilPage() {
         throw new Error('Configuration Supabase manquante.');
       }
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/verify-phone-verification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-          apikey: supabaseAnonKey,
-        },
-        body: JSON.stringify({ code }),
+      const requestBody = JSON.stringify({ code });
+      const buildHeaders = (token: string) => ({
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        apikey: supabaseAnonKey,
       });
+
+      let response = await fetch(`${supabaseUrl}/functions/v1/verify-phone-verification`, {
+        method: 'POST',
+        headers: buildHeaders(accessToken),
+        body: requestBody,
+      });
+
+      if (response.status === 401) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        if (refreshed.session?.access_token) {
+          response = await fetch(`${supabaseUrl}/functions/v1/verify-phone-verification`, {
+            method: 'POST',
+            headers: buildHeaders(refreshed.session.access_token),
+            body: requestBody,
+          });
+        }
+      }
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null);
-        if (response.status === 401 && errorPayload?.message === 'Invalid JWT') {
-          await supabase.auth.signOut();
+        if (response.status === 401) {
           throw new Error('Session expiree. Reconnectez-vous.');
         }
         throw new Error(errorPayload?.error || errorPayload?.message || 'Code invalide.');
