@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { supabase } from '@/lib/supabase.ts';
@@ -50,19 +50,7 @@ export default function ProduitsPage() {
     actif: true,
   });
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-      return;
-    }
-
-    if (user) {
-      fetchProduits();
-      fetchFournisseurs();
-    }
-  }, [user, authLoading, router]);
-
-  const fetchProduits = async () => {
+  const fetchProduits = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -87,9 +75,9 @@ export default function ProduitsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const fetchFournisseurs = async () => {
+  const fetchFournisseurs = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -104,7 +92,19 @@ export default function ProduitsPage() {
     } catch (error) {
       console.error('Erreur lors du chargement des fournisseurs:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
+
+    if (user) {
+      fetchProduits();
+      fetchFournisseurs();
+    }
+  }, [user, authLoading, router, fetchProduits, fetchFournisseurs]);
 
   const openModal = (produit?: Produit) => {
     if (produit) {
@@ -462,10 +462,11 @@ export default function ProduitsPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="produit_designation" className="block text-sm font-medium text-gray-700 mb-1">
                   Désignation *
                 </label>
                 <input
+                  id="produit_designation"
                   type="text"
                   value={formData.designation}
                   onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
@@ -477,10 +478,11 @@ export default function ProduitsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="produit_reference" className="block text-sm font-medium text-gray-700 mb-1">
                     Référence
                   </label>
                   <input
+                    id="produit_reference"
                     type="text"
                     value={formData.reference}
                     onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
@@ -489,10 +491,11 @@ export default function ProduitsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="produit_categorie" className="block text-sm font-medium text-gray-700 mb-1">
                     Catégorie
                   </label>
                   <input
+                    id="produit_categorie"
                     type="text"
                     value={formData.categorie}
                     onChange={(e) => setFormData({ ...formData, categorie: e.target.value })}
@@ -502,10 +505,11 @@ export default function ProduitsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="produit_prix_ht_defaut" className="block text-sm font-medium text-gray-700 mb-1">
                     Prix HT par défaut *
                   </label>
                   <input
+                    id="produit_prix_ht_defaut"
                     type="number"
                     step="0.01"
                     value={formData.prix_ht_defaut}
@@ -516,10 +520,11 @@ export default function ProduitsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="produit_taux_tva_defaut" className="block text-sm font-medium text-gray-700 mb-1">
                     TVA par défaut (%) *
                   </label>
                   <select
+                    id="produit_taux_tva_defaut"
                     value={String(formData.taux_tva_defaut)}
                     onChange={(e) => {
                       const rate = Number.parseFloat(e.target.value);
@@ -537,10 +542,11 @@ export default function ProduitsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="produit_unite" className="block text-sm font-medium text-gray-700 mb-1">
                     Unité *
                   </label>
                   <select
+                    id="produit_unite"
                     value={formData.unite}
                     onChange={(e) => setFormData({ ...formData, unite: e.target.value })}
                     required
@@ -559,10 +565,11 @@ export default function ProduitsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="produit_fournisseur_defaut_id" className="block text-sm font-medium text-gray-700 mb-1">
                     Fournisseur par défaut
                   </label>
                   <select
+                    id="produit_fournisseur_defaut_id"
                     value={formData.fournisseur_defaut_id}
                     onChange={(e) => setFormData({ ...formData, fournisseur_defaut_id: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
