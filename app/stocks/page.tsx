@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { supabase } from '@/lib/supabase.ts';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
@@ -52,9 +52,7 @@ export default function StocksPage() {
   const [mouvements, setMouvements] = useState<MouvementStock[]>([]);
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [showMouvementModal, setShowMouvementModal] = useState(false);
-  const [selectedProduit, setSelectedProduit] = useState<Produit | null>(null);
 
   const [formData, setFormData] = useState({
     produit_id: '',
@@ -66,13 +64,7 @@ export default function StocksPage() {
     notes: '',
   });
 
-  useEffect(() => {
-    if (user) {
-      fetchData();
-    }
-  }, [user]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -123,26 +115,13 @@ export default function StocksPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  const handleActivateStock = async (produitId: string) => {
-    try {
-      const { error } = await supabase
-        .from('produits')
-        .update({ gestion_stock: true })
-        .eq('id', produitId)
-        .eq('user_id', user!.id);
-
-      if (error) throw error;
-
-      toast.success('Gestion de stock activée');
+  useEffect(() => {
+    if (user) {
       fetchData();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Erreur lors de l'activation du stock";
-      toast.error(message);
     }
-  };
+  }, [user, fetchData]);
 
   const handleSubmitMouvement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -415,10 +394,14 @@ export default function StocksPage() {
               </div>
               <form onSubmit={handleSubmitMouvement} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                  <label
+                    htmlFor="mouvement_produit_id"
+                    className="block text-sm font-medium text-slate-700 mb-1"
+                  >
                     Produit *
                   </label>
                   <select
+                    id="mouvement_produit_id"
                     required
                     value={formData.produit_id}
                     onChange={(e) => setFormData({ ...formData, produit_id: e.target.value })}
@@ -435,10 +418,14 @@ export default function StocksPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label
+                      htmlFor="mouvement_type"
+                      className="block text-sm font-medium text-slate-700 mb-1"
+                    >
                       Type de mouvement *
                     </label>
                     <select
+                      id="mouvement_type"
                       required
                       value={formData.type_mouvement}
                       onChange={(e) => setFormData({ ...formData, type_mouvement: e.target.value })}
@@ -450,10 +437,11 @@ export default function StocksPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="mouvement_quantite" className="block text-sm font-medium text-slate-700 mb-1">
                       Quantité *
                     </label>
                     <input
+                      id="mouvement_quantite"
                       type="number"
                       required
                       min="0.01"
@@ -467,10 +455,11 @@ export default function StocksPage() {
 
                 {formData.type_mouvement === 'entree' && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="mouvement_fournisseur_id" className="block text-sm font-medium text-slate-700 mb-1">
                       Fournisseur
                     </label>
                     <select
+                      id="mouvement_fournisseur_id"
                       value={formData.fournisseur_id}
                       onChange={(e) => setFormData({ ...formData, fournisseur_id: e.target.value })}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
@@ -487,10 +476,11 @@ export default function StocksPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="mouvement_prix_unitaire" className="block text-sm font-medium text-slate-700 mb-1">
                       Prix unitaire
                     </label>
                     <input
+                      id="mouvement_prix_unitaire"
                       type="number"
                       min="0"
                       step="0.01"
@@ -501,10 +491,11 @@ export default function StocksPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <label htmlFor="mouvement_reference_document" className="block text-sm font-medium text-slate-700 mb-1">
                       Référence document
                     </label>
                     <input
+                      id="mouvement_reference_document"
                       type="text"
                       value={formData.reference_document}
                       onChange={(e) =>
@@ -516,8 +507,9 @@ export default function StocksPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                  <label htmlFor="mouvement_notes" className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
                   <textarea
+                    id="mouvement_notes"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}

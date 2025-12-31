@@ -45,8 +45,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-gray-100 px-4" style={{ zIndex: 1 }}>
-      <div className="max-w-md w-full space-y-8" style={{ position: 'relative', zIndex: 10 }}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-gray-100 px-4 relative z-[1]">
+      <div className="max-w-md w-full space-y-8 relative z-[10]">
         <div className="text-center">
           <div className="flex justify-center mb-4">
             <Logo size="medium" />
@@ -78,8 +78,7 @@ export default function RegisterPage() {
                 required
                 disabled={false}
                 readOnly={false}
-                style={{ pointerEvents: 'auto', userSelect: 'text' }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white pointer-events-auto select-text"
                 placeholder="votre@email.com"
               />
             </div>
@@ -101,8 +100,7 @@ export default function RegisterPage() {
                   disabled={false}
                   readOnly={false}
                   minLength={6}
-                  style={{ pointerEvents: 'auto', userSelect: 'text' }}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white pointer-events-auto select-text"
                 />
                 <button
                   type="button"
@@ -160,8 +158,7 @@ export default function RegisterPage() {
                   disabled={false}
                   readOnly={false}
                   minLength={6}
-                  style={{ pointerEvents: 'auto', userSelect: 'text' }}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white pointer-events-auto select-text"
                 />
                 <button
                   type="button"
