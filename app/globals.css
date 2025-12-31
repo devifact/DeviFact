@@ -26,7 +26,7 @@ body {
     rgb(var(--background-start-rgb));
 }
 
-/* Force tous les inputs à être interactifs */
+/* Force tous les inputs a etre interactifs */
 input[type="email"],
 input[type="password"],
 input[type="text"],
@@ -36,10 +36,10 @@ input[type="url"],
 textarea,
 select {
   pointer-events: auto !important;
-  user-select: text !important;
   -webkit-user-select: text !important;
   -moz-user-select: text !important;
   -ms-user-select: text !important;
+  user-select: text !important;
   color: #111827 !important;
   background-color: white !important;
 }
@@ -53,3 +53,5 @@ input[type="url"]::placeholder,
 textarea::placeholder {
   color: #9CA3AF !important;
 }
+
+
