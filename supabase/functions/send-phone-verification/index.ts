@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey, apikey',
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -115,21 +115,22 @@ serve(async (req: Request) => {
       throw new Error('Site URL not configured');
     }
 
-    const authHeader = req.headers.get('Authorization') ?? '';
-    if (!authHeader) {
+    const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization') ?? '';
+    const accessToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!accessToken) {
       throw new Error('Non authentifie');
     }
 
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: {
-        headers: { Authorization: authHeader },
+        headers: { Authorization: `Bearer ${accessToken}` },
       },
     });
 
     const {
       data: { user },
       error: userError,
-    } = await supabaseClient.auth.getUser();
+    } = await supabaseClient.auth.getUser(accessToken);
 
     if (userError || !user) {
       throw new Error('Non authentifie');
