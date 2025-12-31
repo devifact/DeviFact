@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+import { supabase } from './supabase.ts';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
@@ -51,20 +51,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        (async () => {
-          setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
 
-          if (event === 'SIGNED_IN') {
-            const redirect = getPostLoginRedirect();
-            router.push(redirect ?? '/dashboard');
-          } else if (event === 'SIGNED_OUT') {
-            router.push('/login');
-          }
-        })();
+      if (event === 'SIGNED_IN') {
+        const redirect = getPostLoginRedirect();
+        router.push(redirect ?? '/dashboard');
+      } else if (event === 'SIGNED_OUT') {
+        router.push('/login');
       }
-    );
+    });
 
     return () => subscription.unsubscribe();
   }, [router]);
