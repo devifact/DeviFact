@@ -248,12 +248,12 @@ export default function DevisPage() {
   return (
     <DashboardLayout>
       <div>
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col gap-4 mb-8 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold text-gray-900">Devis</h1>
           <button
             type="button"
             onClick={handleCreateDevis}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+            className="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
           >
             Créer un devis
           </button>
@@ -272,7 +272,7 @@ export default function DevisPage() {
 
         <div className="bg-white rounded-lg shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] divide-y divide-gray-200">
+            <table className="w-full min-w-[860px] divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -290,7 +290,7 @@ export default function DevisPage() {
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total TTC
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[220px]">
                   Actions
                 </th>
               </tr>
@@ -321,7 +321,7 @@ export default function DevisPage() {
                       {d.total_ttc.toFixed(2)} €
                     </td>
                     <td className="px-6 py-4 text-center text-sm font-medium">
-                      <div className="flex flex-wrap items-center justify-center gap-3 whitespace-nowrap">
+                      <div className="flex flex-wrap items-center justify-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleViewDevis(d.id)}

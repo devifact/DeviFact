@@ -325,7 +325,8 @@ export default function NouveauDevisPage() {
                   value={dateValidite}
                   onChange={(e) => setDateValidite(e.target.value)}
                   title="Date de validité"
-                  className="w-full px-3 py-2 text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  style={{ colorScheme: 'light' }}
                 />
               </div>
             </div>

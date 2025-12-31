@@ -33,6 +33,7 @@ input[type="text"],
 input[type="tel"],
 input[type="number"],
 input[type="url"],
+input[type="date"],
 textarea,
 select {
   pointer-events: auto !important;
@@ -44,12 +45,29 @@ select {
   background-color: white !important;
 }
 
+input[type="date"] {
+  color: #111827 !important;
+  color-scheme: light;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
 input[type="email"]::placeholder,
 input[type="password"]::placeholder,
 input[type="text"]::placeholder,
 input[type="tel"]::placeholder,
 input[type="number"]::placeholder,
 input[type="url"]::placeholder,
+input[type="date"]::placeholder,
 textarea::placeholder {
   color: #9CA3AF !important;
 }
