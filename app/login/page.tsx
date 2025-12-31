@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context.tsx';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Logo } from '@/components/logo.tsx';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -12,6 +13,25 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const rawNext = searchParams.get('next');
+    if (!rawNext) return;
+
+    let decodedNext = rawNext;
+    try {
+      decodedNext = decodeURIComponent(rawNext);
+    } catch {
+      return;
+    }
+
+    if (decodedNext.startsWith('/') && !decodedNext.startsWith('//')) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('postLoginRedirect', decodedNext);
+      }
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

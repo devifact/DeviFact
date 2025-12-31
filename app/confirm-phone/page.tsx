@@ -28,8 +28,13 @@ export default function ConfirmPhonePage() {
 
       if (sessionError || !accessToken) {
         if (cancelled) return;
+        const nextPath = `/confirm-phone?token=${encodeURIComponent(token)}`;
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('postLoginRedirect', nextPath);
+        }
         setStatus('error');
         setMessage('Veuillez vous connecter pour confirmer votre numero.');
+        router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
         return;
       }
 
@@ -72,7 +77,7 @@ export default function ConfirmPhonePage() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">

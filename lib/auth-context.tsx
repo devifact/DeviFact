@@ -34,6 +34,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  const getPostLoginRedirect = () => {
+    if (typeof window === 'undefined') return null;
+    const stored = sessionStorage.getItem('postLoginRedirect');
+    if (!stored) return null;
+    sessionStorage.removeItem('postLoginRedirect');
+    if (stored.startsWith('/') && !stored.startsWith('//')) {
+      return stored;
+    }
+    return null;
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -46,7 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session?.user ?? null);
 
           if (event === 'SIGNED_IN') {
-            router.push('/dashboard');
+            const redirect = getPostLoginRedirect();
+            router.push(redirect ?? '/dashboard');
           } else if (event === 'SIGNED_OUT') {
             router.push('/login');
           }
