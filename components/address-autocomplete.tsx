@@ -61,6 +61,7 @@ export function AddressAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
   const requestIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const inputAriaLabel = placeholder || 'Adresse';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -185,6 +186,7 @@ export function AddressAutocomplete({
           if (suggestions.length > 0) setIsOpen(true);
         }}
         placeholder={placeholder}
+        aria-label={inputAriaLabel}
         disabled={disabled}
         autoComplete="off"
         className={inputClassName}
@@ -208,7 +210,7 @@ export function AddressAutocomplete({
                 <li
                   key={`${suggestion.label}-${index}`}
                   role="option"
-                  aria-selected={index === activeIndex}
+                  aria-selected={index === activeIndex ? 'true' : 'false'}
                   className={`cursor-pointer px-3 py-2 text-sm ${
                     index === activeIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
                   }`}

@@ -81,6 +81,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
               <button
                 onClick={handleSignOut}
+                type="button"
                 className="text-gray-600 hover:text-gray-900 text-sm font-medium"
               >
                 Déconnexion

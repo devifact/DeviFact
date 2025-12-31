@@ -148,12 +148,14 @@ export default function PremiumGuard({ children }: PremiumGuardProps) {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => router.push('/abonnement')}
+                type="button"
                 className="px-8 py-4 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors text-lg font-semibold shadow-lg hover:shadow-xl"
               >
                 Souscrire à l'option Premium
               </button>
               <button
                 onClick={() => router.push('/dashboard')}
+                type="button"
                 className="px-8 py-4 bg-white text-slate-900 border-2 border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-lg font-semibold"
               >
                 Retour au tableau de bord
