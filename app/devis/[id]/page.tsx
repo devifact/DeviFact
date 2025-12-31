@@ -5,7 +5,7 @@ export const runtime = 'edge';
 import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
-import { supabase } from '@/lib/supabase.ts';
+import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
@@ -122,12 +122,13 @@ export default function DevisDetailPage() {
 
       const response = await fetch(
         `${supabaseUrl}/functions/v1/generate-pdf`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              apikey: supabaseAnonKey,
+              'Content-Type': 'application/json',
+            },
           body: JSON.stringify({
             type: 'devis',
             id: devis.id,

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
-import { supabase } from '@/lib/supabase.ts';
+import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -103,12 +103,13 @@ export default function DevisPage() {
 
       const response = await fetch(
         `${supabaseUrl}/functions/v1/generate-pdf`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              apikey: supabaseAnonKey,
+              'Content-Type': 'application/json',
+            },
           body: JSON.stringify({
             type: 'devis',
             id: devisId,
