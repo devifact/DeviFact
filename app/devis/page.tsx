@@ -269,8 +269,9 @@ export default function DevisPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="bg-white rounded-lg shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -318,8 +319,8 @@ export default function DevisPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
                       {d.total_ttc.toFixed(2)} €
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                      <div className="flex items-center justify-center gap-3">
+                    <td className="px-6 py-4 text-center text-sm font-medium">
+                      <div className="flex flex-wrap items-center justify-center gap-3 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleViewDevis(d.id)}
@@ -362,6 +363,7 @@ export default function DevisPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </DashboardLayout>
