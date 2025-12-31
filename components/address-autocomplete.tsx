@@ -187,6 +187,7 @@ export function AddressAutocomplete({
         }}
         placeholder={placeholder}
         aria-label={inputAriaLabel}
+        title={inputAriaLabel}
         disabled={disabled}
         autoComplete="off"
         className={inputClassName}
@@ -210,7 +211,7 @@ export function AddressAutocomplete({
                 <li
                   key={`${suggestion.label}-${index}`}
                   role="option"
-                  aria-selected={index === activeIndex ? 'true' : 'false'}
+                  aria-selected={index === activeIndex}
                   className={`cursor-pointer px-3 py-2 text-sm ${
                     index === activeIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
                   }`}
