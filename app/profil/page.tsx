@@ -394,10 +394,14 @@ export default function ProfilPage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="raison_sociale"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Raison sociale *
               </label>
               <input
+                id="raison_sociale"
                 type="text"
                 value={formData.raison_sociale}
                 onChange={(e) => setFormData({ ...formData, raison_sociale: e.target.value })}
@@ -407,10 +411,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="nom" className="block text-sm font-medium text-gray-700 mb-1">
                 Nom *
               </label>
               <input
+                id="nom"
                 type="text"
                 value={formData.nom}
                 onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
@@ -420,10 +425,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="prenom" className="block text-sm font-medium text-gray-700 mb-1">
                 Prénom *
               </label>
               <input
+                id="prenom"
                 type="text"
                 value={formData.prenom}
                 onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
@@ -433,7 +439,10 @@ export default function ProfilPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="adresse"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Adresse *
               </label>
               <AddressAutocomplete
@@ -454,10 +463,14 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="code_postal"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Code postal *
               </label>
               <input
+                id="code_postal"
                 type="text"
                 value={formData.code_postal}
                 onChange={(e) => setFormData({ ...formData, code_postal: e.target.value })}
@@ -467,10 +480,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="ville" className="block text-sm font-medium text-gray-700 mb-1">
                 Ville *
               </label>
               <input
+                id="ville"
                 type="text"
                 value={formData.ville}
                 onChange={(e) => setFormData({ ...formData, ville: e.target.value })}
@@ -480,10 +494,14 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="departement"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Departement
               </label>
               <input
+                id="departement"
                 type="text"
                 value={formData.departement}
                 onChange={(e) => setFormData({ ...formData, departement: e.target.value })}
@@ -492,10 +510,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="pays" className="block text-sm font-medium text-gray-700 mb-1">
                 Pays
               </label>
               <input
+                id="pays"
                 type="text"
                 value={formData.pays}
                 onChange={(e) => setFormData({ ...formData, pays: e.target.value })}
@@ -504,10 +523,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="siret" className="block text-sm font-medium text-gray-700 mb-1">
                 SIRET *
               </label>
               <input
+                id="siret"
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -533,10 +553,14 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="email_contact"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Email contact *
               </label>
               <input
+                id="email_contact"
                 type="email"
                 value={formData.email_contact}
                 onChange={(e) => setFormData({ ...formData, email_contact: e.target.value })}
@@ -546,10 +570,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="telephone" className="block text-sm font-medium text-gray-700 mb-1">
                 Téléphone *
               </label>
               <input
+                id="telephone"
                 type="tel"
                 value={formData.telephone}
                 onChange={(e) =>
@@ -590,10 +615,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="taux_tva" className="block text-sm font-medium text-gray-700 mb-1">
                 Regime de TVA (taux par defaut)
               </label>
               <select
+                id="taux_tva"
                 value={String(formData.taux_tva)}
                 onChange={(e) => {
                   const rate = parseFloat(e.target.value);
@@ -622,11 +648,12 @@ export default function ProfilPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="logo_url" className="block text-sm font-medium text-gray-700 mb-1">
                 URL Logo (optionnel)
               </label>
               <div className="space-y-3">
                 <input
+                  id="logo_url"
                   type="url"
                   value={formData.logo_url}
                   onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
@@ -634,7 +661,11 @@ export default function ProfilPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label htmlFor="logo_file" className="sr-only">
+                    Choisir un fichier logo
+                  </label>
                   <input
+                    id="logo_file"
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif"
                     onChange={handleLogoFileChange}
@@ -654,6 +685,7 @@ export default function ProfilPage() {
                 )}
                 {(logoPreviewUrl || formData.logo_url) && (
                   <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={logoPreviewUrl || formData.logo_url}
                       alt="Apercu du logo"
@@ -668,10 +700,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="iban" className="block text-sm font-medium text-gray-700 mb-1">
                 IBAN (optionnel)
               </label>
               <input
+                id="iban"
                 type="text"
                 value={formData.iban}
                 onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
@@ -680,10 +713,11 @@ export default function ProfilPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="bic" className="block text-sm font-medium text-gray-700 mb-1">
                 BIC (optionnel)
               </label>
               <input
+                id="bic"
                 type="text"
                 value={formData.bic}
                 onChange={(e) => setFormData({ ...formData, bic: e.target.value })}
