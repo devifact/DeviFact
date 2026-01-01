@@ -5,7 +5,7 @@ import puppeteer from 'npm:puppeteer@21.6.1';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
 };
 
 type ProfileData = {
@@ -225,7 +225,7 @@ function generateHtmlTemplate(
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
