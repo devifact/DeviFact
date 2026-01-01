@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
-import puppeteer from 'npm:puppeteer@21.6.1';
+import puppeteer from 'npm:puppeteer-core';
+import chromium from 'npm:@sparticuz/chromium';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -206,8 +207,9 @@ serve(async (req: Request) => {
     );
 
     const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     });
 
     const page = await browser.newPage();
