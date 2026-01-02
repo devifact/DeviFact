@@ -5,7 +5,7 @@ export const runtime = 'edge';
 import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
-import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
@@ -101,59 +101,14 @@ export default function DevisDetailPage() {
     }
   }, [user, authLoading, devisId, router, fetchDevisDetails]);
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     if (!devis) return;
 
     try {
       setGeneratingPdf(true);
-      toast.loading('Génération du PDF en cours...', { id: 'pdf-generation' });
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error('Session expiree');
-      }
-
-      if (!client || !profile) {
-        throw new Error('Client ou profil manquant');
-      }
-
-      const { data, error } = await supabase.functions.invoke('generate-pdf', {
-        body: {
-          type: 'devis',
-          document: devis,
-          client,
-          profile,
-          lignes,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: supabaseAnonKey,
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      const buffer = data instanceof ArrayBuffer
-        ? data
-        : new Uint8Array(data).buffer;
-      const blob = new Blob([buffer], { type: 'application/pdf' });
-      const doc = globalThis.document;
-      if (!doc) {
-        throw new Error('Telechargement indisponible');
-      }
-      const url = URL.createObjectURL(blob);
-      const a = doc.createElement('a');
-      a.href = url;
-      a.download = `devis-${devis.numero}.pdf`;
-      doc.body?.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      a.remove();
-
-      toast.success('PDF téléchargé avec succès', { id: 'pdf-generation' });
+      toast.loading("Ouverture de l'impression...", { id: 'pdf-generation' });
+      window.print();
+      toast.success('Impression ouverte', { id: 'pdf-generation' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
       toast.error(message, { id: 'pdf-generation' });
@@ -317,7 +272,7 @@ export default function DevisDetailPage() {
             <button
               type="button"
               onClick={() => router.push('/devis')}
-              className="text-blue-600 hover:text-blue-800 mb-2 flex items-center"
+              className="text-blue-600 hover:text-blue-800 mb-2 flex items-center print-hide"
             >
               ← Retour aux devis
             </button>
@@ -325,7 +280,7 @@ export default function DevisDetailPage() {
               Devis {devis.numero}
             </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 print-hide">
             {getStatusBadge(devis.statut)}
             <button
               type="button"
@@ -333,7 +288,7 @@ export default function DevisDetailPage() {
               disabled={generatingPdf}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {generatingPdf ? 'Génération...' : 'Télécharger PDF'}
+              {generatingPdf ? 'Impression...' : 'Imprimer / Exporter en PDF'}
             </button>
             <button
               type="button"
@@ -354,7 +309,7 @@ export default function DevisDetailPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-8">
+        <div className="bg-white rounded-lg shadow-sm p-8 print-area">
           <div className="border-b-2 border-blue-600 pb-6 mb-6">
             <div className="flex justify-between">
               <div>
@@ -416,7 +371,7 @@ export default function DevisDetailPage() {
                   {new Date(devis.date_validite).toLocaleDateString('fr-FR')}
                 </p>
               )}
-              <div className="text-gray-600 mt-2">
+              <div className="text-gray-600 mt-2 print-hide">
                 <label htmlFor="devis-statut" className="font-medium mr-2">Statut:</label>
                 <select
                   id="devis-statut"
@@ -466,7 +421,7 @@ export default function DevisDetailPage() {
                     </tr>
                   ) : (
                     lignes.map((ligne) => (
-                      <tr key={ligne.id}>
+                      <tr key={ligne.id} className="print-break-avoid">
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {ligne.designation}
                         </td>
@@ -531,6 +486,47 @@ export default function DevisDetailPage() {
           )}
         </div>
       </div>
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
+
+          body {
+            background: #fff;
+          }
+
+          nav,
+          aside,
+          header,
+          button,
+          select,
+          .print-hide {
+            display: none !important;
+          }
+
+          .print-area {
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            max-width: none !important;
+          }
+
+          .print-area table {
+            page-break-inside: auto;
+          }
+
+          thead {
+            display: table-header-group;
+          }
+
+          .print-break-avoid {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+        }
+      `}</style>
     </DashboardLayout>
   );
 }
