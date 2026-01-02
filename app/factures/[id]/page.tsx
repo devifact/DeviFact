@@ -5,7 +5,7 @@ export const runtime = 'edge';
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
-import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
@@ -104,61 +104,13 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     }
   }, [authLoading, fetchFactureDetails, router, user]);
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadPDF = () => {
     if (!facture) return;
 
     try {
-      toast.loading('Génération du PDF...', { id: 'pdf' });
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('Session expirée');
-      }
-
-      // deno-lint-ignore no-process-global
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('URL Supabase manquante.');
-      }
-
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/generate-pdf`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              apikey: supabaseAnonKey,
-              'Content-Type': 'application/json',
-            },
-          body: JSON.stringify({
-            type: 'facture',
-            id: facture.id,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur lors de la génération du PDF');
-      }
-
-      const blob = await response.blob();
-      const doc = globalThis.document;
-      if (!doc) {
-        throw new Error('Navigateur indisponible.');
-      }
-
-      const url = URL.createObjectURL(blob);
-      const link = doc.createElement('a');
-      link.href = url;
-      link.download = `${facture.numero}.pdf`;
-      doc.body?.appendChild(link);
-      link.click();
-      URL.revokeObjectURL(url);
-      doc.body?.removeChild(link);
-
-      toast.success('PDF généré avec succès', { id: 'pdf' });
+      toast.loading("Ouverture de l'impression...", { id: 'pdf' });
+      window.print();
+      toast.success('Impression ouverte', { id: 'pdf' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur lors du telechargement.';
       toast.error(message, { id: 'pdf' });
@@ -304,7 +256,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
               onClick={handleDownloadPDF}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
             >
-              Télécharger PDF
+              Imprimer / Exporter en PDF
             </button>
             {facture.statut !== 'payee' && facture.statut !== 'annulee' && (
               <>
