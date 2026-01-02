@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
 
@@ -42,6 +42,7 @@ interface FactureDetails extends Facture {
 export default function FactureDetailPage({ params }: { params: { id: string } }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [facture, setFacture] = useState<FactureDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -50,6 +51,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
   const [modePaiement, setModePaiement] = useState('Virement');
   const [referencePaiement, setReferencePaiement] = useState('');
   const [notesPaiement, setNotesPaiement] = useState('');
+  const [pendingActionHandled, setPendingActionHandled] = useState(false);
 
   const fetchFactureDetails = useCallback(async () => {
     if (!user) return;
@@ -231,7 +233,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     );
   };
 
-  const openPaymentModal = (type: 'acompte' | 'solde') => {
+  const openPaymentModal = useCallback((type: 'acompte' | 'solde') => {
     setTypePaiement(type);
     if (type === 'solde' && facture) {
       const totalPaye = facture.paiements.reduce((sum, p) => sum + parseFloat(p.montant.toString()), 0);
@@ -241,7 +243,29 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
       setMontantPaiement('');
     }
     setShowPaymentModal(true);
-  };
+  }, [facture]);
+
+  useEffect(() => {
+    if (!facture || pendingActionHandled) {
+      return;
+    }
+
+    const paiement = searchParams.get('paiement');
+    if (paiement === 'acompte' || paiement === 'solde') {
+      setPendingActionHandled(true);
+      openPaymentModal(paiement);
+      router.replace(`/factures/${params.id}`);
+      return;
+    }
+
+    if (searchParams.get('print') === '1') {
+      setPendingActionHandled(true);
+      requestAnimationFrame(() => {
+        window.print();
+      });
+      router.replace(`/factures/${params.id}`);
+    }
+  }, [facture, openPaymentModal, params.id, pendingActionHandled, router, searchParams]);
 
   if (authLoading || loading) {
     return (

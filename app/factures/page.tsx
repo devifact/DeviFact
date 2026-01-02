@@ -210,6 +210,18 @@ export default function FacturesPage() {
     }
   };
 
+  const handleViewFacture = (factureId: string) => {
+    router.push(`/factures/${factureId}`);
+  };
+
+  const handlePrintFacture = (factureId: string) => {
+    router.push(`/factures/${factureId}?print=1`);
+  };
+
+  const handlePaiementFacture = (factureId: string, type: 'acompte' | 'solde') => {
+    router.push(`/factures/${factureId}?paiement=${type}`);
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -302,10 +314,39 @@ export default function FacturesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
                       {f.total_ttc.toFixed(2)} €
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                      <Link href={`/factures/${f.id}`} className="text-blue-600 hover:text-blue-900">
-                        Voir
-                      </Link>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex flex-wrap items-center justify-end gap-3 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleViewFacture(f.id)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          Voir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintFacture(f.id)}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          Imprimer PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePaiementFacture(f.id, 'acompte')}
+                          className="text-yellow-600 hover:text-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={f.statut === 'payee' || f.statut === 'annulee'}
+                        >
+                          Acompte
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePaiementFacture(f.id, 'solde')}
+                          className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={f.statut === 'payee' || f.statut === 'annulee'}
+                        >
+                          Solde
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
