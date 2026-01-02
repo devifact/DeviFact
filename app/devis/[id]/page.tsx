@@ -5,7 +5,7 @@ export const runtime = 'edge';
 import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase.ts';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
@@ -14,49 +14,6 @@ type Devis = Database['public']['Tables']['devis']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
 type LigneDevis = Database['public']['Tables']['lignes_devis']['Row'];
 type Profile = Database['public']['Tables']['profiles']['Row'];
-
-const supabase = createClient(
-  'http://localhost:54321',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZybnlwZXd1amJjbWt1emVwanl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY4NDkyMDMsImV4cCI6MjA4MjQyNTIwM30.2vDkfSEyCRVyyni_Lc4adx5DhlOg5KOxM_SC5FlmZSw',
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
-  }
-);
-
-export async function generatePdf(body: any) {
-  console.log('Calling generate-pdf...');
-
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    throw new Error('No active session');
-  }
-
-  const { data, error } = await supabase.functions.invoke('generate-pdf', {
-    body,
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  });
-
-  if (error) throw error;
-
-  console.log('generate-pdf response received');
-
-  const buffer =
-    data instanceof ArrayBuffer ? data : new Uint8Array(data).buffer;
-
-  const blob = new Blob([buffer], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'document.pdf';
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 export default function DevisDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -151,10 +108,42 @@ export default function DevisDetailPage() {
       setGeneratingPdf(true);
       toast.loading('Génération du PDF en cours...', { id: 'pdf-generation' });
 
-      await generatePdf({
-        type: 'devis',
-        id: devis.id,
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Session expiree');
+      }
+
+      const { data, error } = await supabase.functions.invoke('generate-pdf', {
+        body: {
+          type: 'devis',
+          id: devis.id,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
+
+      if (error) {
+        throw error;
+      }
+
+      const buffer = data instanceof ArrayBuffer
+        ? data
+        : new Uint8Array(data).buffer;
+      const blob = new Blob([buffer], { type: 'application/pdf' });
+      const doc = globalThis.document;
+      if (!doc) {
+        throw new Error('Telechargement indisponible');
+      }
+      const url = URL.createObjectURL(blob);
+      const a = doc.createElement('a');
+      a.href = url;
+      a.download = `devis-${devis.numero}.pdf`;
+      doc.body?.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      a.remove();
 
       toast.success('PDF téléchargé avec succès', { id: 'pdf-generation' });
     } catch (error) {
