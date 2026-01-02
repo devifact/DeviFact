@@ -114,10 +114,17 @@ export default function DevisDetailPage() {
         throw new Error('Session expiree');
       }
 
+      if (!client || !profile) {
+        throw new Error('Client ou profil manquant');
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-pdf', {
         body: {
           type: 'devis',
-          id: devis.id,
+          document: devis,
+          client,
+          profile,
+          lignes,
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
