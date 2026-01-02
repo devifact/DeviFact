@@ -5,7 +5,7 @@ export const runtime = 'edge';
 import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
-import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
@@ -135,33 +135,20 @@ export default function DevisDetailPage() {
         throw new Error('Session expirée');
       }
 
-      // deno-lint-ignore no-process-global
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('Supabase URL manquante');
+      const { data, error } = await supabase.functions.invoke('create-facture', {
+        body: {
+          devis_id: devis.id,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error || !data) {
+        throw new Error(error?.message || 'Erreur lors de la création de la facture');
       }
 
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/create-facture`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-            apikey: supabaseAnonKey,
-          },
-          body: JSON.stringify({
-            devis_id: devis.id,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur lors de la création de la facture');
-      }
-
-      const { facture } = await response.json();
+      const { facture } = data as { facture?: { id?: string } };
 
       toast.success('Devis accepté et facture créée avec succès', { id: 'create-facture' });
       if (facture?.id) {
