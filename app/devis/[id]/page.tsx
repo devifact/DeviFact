@@ -101,6 +101,77 @@ export default function DevisDetailPage() {
     }
   }, [user, authLoading, devisId, router, fetchDevisDetails]);
 
+  const creerFactureDepuisDevis = async (devisId: string) => {
+    const { data: devisData, error: devisError } = await supabase
+      .from('devis')
+      .select('*')
+      .eq('id', devisId)
+      .single();
+    if (devisError) throw devisError;
+
+    const { data: existingFactures, error: existingError } = await supabase
+      .from('factures')
+      .select('id')
+      .eq('devis_id', devisData.id);
+    if (existingError) throw existingError;
+    if (existingFactures && existingFactures.length > 0) {
+      throw new Error('Une facture existe déjà pour ce devis');
+    }
+
+    if (!user?.id) {
+      throw new Error('Utilisateur non authentifié');
+    }
+
+    const numero = devisData.numero?.startsWith('DEV-')
+      ? devisData.numero.replace(/^DEV-/, 'FA-')
+      : `FA-${devisData.numero ?? devisData.id}`;
+
+    const { data: facture, error: factureError } = await supabase
+      .from('factures')
+      .insert({
+        devis_id: devisData.id,
+        client_id: devisData.client_id,
+        user_id: user.id,
+        numero,
+        total_ht: devisData.total_ht,
+        total_tva: devisData.total_tva,
+        total_ttc: devisData.total_ttc,
+      })
+      .select()
+      .single();
+    if (factureError) throw factureError;
+
+    const { data: lignes, error: lignesError } = await supabase
+      .from('lignes_devis')
+      .select('*')
+      .eq('devis_id', devisData.id);
+    if (lignesError) throw lignesError;
+
+    if (lignes?.length) {
+      const lignesFacture = lignes.map((ligne) => ({
+        facture_id: facture.id,
+        designation: ligne.designation,
+        quantite: ligne.quantite,
+        prix_unitaire_ht: ligne.prix_unitaire_ht,
+        taux_tva: ligne.taux_tva,
+        fournisseur_id: ligne.fournisseur_id,
+        ordre: ligne.ordre,
+      }));
+      const { error: insertError } = await supabase
+        .from('lignes_factures')
+        .insert(lignesFacture);
+      if (insertError) throw insertError;
+    }
+
+    const { error: updateError } = await supabase
+      .from('devis')
+      .update({ statut: 'accepte' })
+      .eq('id', devisData.id);
+    if (updateError) throw updateError;
+
+    return facture;
+  };
+
   const handleDownloadPdf = () => {
     if (!devis) return;
 
@@ -135,20 +206,7 @@ export default function DevisDetailPage() {
         throw new Error('Session expirée');
       }
 
-      const { data, error } = await supabase.functions.invoke('create-facture', {
-        body: {
-          devis_id: devis.id,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (error || !data) {
-        throw new Error(error?.message || 'Erreur lors de la création de la facture');
-      }
-
-      const { facture } = data as { facture?: { id?: string } };
+      const facture = await creerFactureDepuisDevis(devis.id);
 
       toast.success('Devis accepté et facture créée avec succès', { id: 'create-facture' });
       if (facture?.id) {
