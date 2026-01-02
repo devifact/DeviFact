@@ -259,100 +259,102 @@ export default function FacturesPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Numéro
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Échéance
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total HT
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total TTC
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {factures.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                    Aucune facture
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Numéro
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Échéance
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Statut
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total HT
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total TTC
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ) : (
-                factures.map((f) => (
-                  <tr key={f.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {f.numero}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(f.date_emission).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {getStatusBadge(f.statut)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {f.total_ht.toFixed(2)} €
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                      {f.total_ttc.toFixed(2)} €
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex flex-wrap items-center justify-end gap-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleViewFacture(f.id)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Voir
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePrintFacture(f.id)}
-                          className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          Imprimer PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePaiementFacture(f.id, 'acompte')}
-                          className="text-yellow-600 hover:text-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={f.statut === 'payee' || f.statut === 'annulee'}
-                        >
-                          Acompte
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePaiementFacture(f.id, 'solde')}
-                          className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={f.statut === 'payee' || f.statut === 'annulee'}
-                        >
-                          Solde
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {factures.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                      Aucune facture
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  factures.map((f) => (
+                    <tr key={f.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {f.numero}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(f.date_emission).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {getStatusBadge(f.statut)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                        {f.total_ht.toFixed(2)} €
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
+                        {f.total_ttc.toFixed(2)} €
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex flex-wrap items-center justify-end gap-3 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleViewFacture(f.id)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Voir
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintFacture(f.id)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Imprimer PDF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePaiementFacture(f.id, 'acompte')}
+                            className="text-yellow-600 hover:text-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={f.statut === 'payee' || f.statut === 'annulee'}
+                          >
+                            Acompte
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePaiementFacture(f.id, 'solde')}
+                            className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={f.statut === 'payee' || f.statut === 'annulee'}
+                          >
+                            Solde
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
