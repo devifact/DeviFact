@@ -392,8 +392,9 @@ serve(async (req: Request) => {
     }
 
     const pdfBytes = await generatePdf(type, document, profile, client, lignes, isTrialMode);
+    const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
 
-    return new Response(pdfBytes, {
+    return new Response(pdfBlob, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',

@@ -110,38 +110,26 @@ export default function DevisDetailPage() {
 
       const { data: { session } } = await supabase.auth.getSession();
 
-      if (!session) {
-        throw new Error('Session expirée');
+      if (!session?.access_token) {
+        throw new Error('Session expiree');
       }
 
-      // deno-lint-ignore no-process-global
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('Supabase URL manquante');
+      const { data, error } = await supabase.functions.invoke('generate-pdf', {
+        body: {
+          type: 'devis',
+          id: devis.id,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        responseType: 'blob',
+      });
+
+      if (error || !data) {
+        throw new Error(error?.message || 'Erreur lors de la generation du PDF');
       }
 
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/generate-pdf`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              apikey: supabaseAnonKey,
-              'Content-Type': 'application/json',
-            },
-          body: JSON.stringify({
-            type: 'devis',
-            id: devis.id,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur lors de la génération du PDF');
-      }
-
-      const blob = await response.blob();
+      const blob = data;
       const doc = globalThis.document;
       if (!doc) {
         throw new Error('Telechargement indisponible');
