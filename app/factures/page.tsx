@@ -122,92 +122,30 @@ export default function FacturesPage() {
     }
   }, [authLoading, fetchFactures, router, user]);
 
-  const getStatusBadge = (statut: string) => {
-    const styles = {
-      payee: 'bg-green-100 text-green-800',
-      non_payee: 'bg-orange-100 text-orange-800',
-      annulee: 'bg-red-100 text-red-800',
-    };
-
-    const labels = {
-      payee: 'Payée',
-      non_payee: 'Non payée',
-      annulee: 'Annulée',
-    };
-
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded ${styles[statut as keyof typeof styles]}`}>
-        {labels[statut as keyof typeof labels]}
-      </span>
-    );
+  const getFactureStatus = (facture: Facture) => {
+    if (facture.statut === 'payee') {
+      return { label: 'Payée', className: 'bg-green-100 text-green-800' };
+    }
+    if (facture.statut === 'partiellement_payee') {
+      return { label: 'Partiellement payée', className: 'bg-yellow-100 text-yellow-800' };
+    }
+    if (facture.statut === 'annulee') {
+      return { label: 'Annulée', className: 'bg-red-100 text-red-800' };
+    }
+    if (Number(facture.total_ttc) === 0) {
+      return { label: 'Brouillon', className: 'bg-gray-100 text-gray-800' };
+    }
+    return { label: 'Envoyée', className: 'bg-blue-100 text-blue-800' };
   };
 
   const handleCreateFacture = () => {
     if (!profile?.profil_complete) {
-      toast.error('Veuillez completer votre profil avant de creer une facture');
+      toast.error('Veuillez compléter votre profil avant de créer une facture');
       router.push('/profil');
       return;
     }
     setShowCreateModal(true);
     fetchEligibleDevis();
-  };
-
-  const handleCreateFactureFromDevis = async () => {
-    if (!selectedDevisId) {
-      toast.error('Selectionnez un devis');
-      return;
-    }
-
-    try {
-      setCreatingFacture(true);
-      toast.loading('Creation de la facture...', { id: 'create-facture' });
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('Session expiree');
-      }
-
-      // deno-lint-ignore no-process-global
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('Supabase URL manquante');
-      }
-
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/create-facture`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            devis_id: selectedDevisId,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur lors de la creation de la facture');
-      }
-
-      const { facture } = await response.json();
-
-      toast.success('Facture creee avec succes', { id: 'create-facture' });
-      setShowCreateModal(false);
-      setSelectedDevisId('');
-      fetchFactures();
-      if (facture?.id) {
-        router.push(`/factures/${facture.id}`);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue';
-      toast.error(message, { id: 'create-facture' });
-    } finally {
-      setCreatingFacture(false);
-    }
   };
 
   const handleViewFacture = (factureId: string) => {
@@ -220,6 +158,110 @@ export default function FacturesPage() {
 
   const handlePaiementFacture = (factureId: string, type: 'acompte' | 'solde') => {
     router.push(`/factures/${factureId}?paiement=${type}`);
+  };
+
+  const creerFactureDepuisDevis = async (devisId: string) => {
+    if (!user) {
+      throw new Error('Utilisateur non authentifié');
+    }
+
+    const { data: devisData, error: devisError } = await supabase
+      .from('devis')
+      .select('*')
+      .eq('id', devisId)
+      .single();
+    if (devisError) throw devisError;
+
+    const { data: existingFactures, error: existingError } = await supabase
+      .from('factures')
+      .select('id')
+      .eq('devis_id', devisData.id);
+    if (existingError) throw existingError;
+    if (existingFactures && existingFactures.length > 0) {
+      throw new Error('Une facture existe déjà pour ce devis');
+    }
+
+    const { data: numeroData, error: numeroError } = await supabase
+      .rpc('generate_facture_number', { p_user_id: user.id });
+    const numero = numeroData
+      || (devisData.numero?.startsWith('DEV-')
+        ? devisData.numero.replace(/^DEV-/, 'FA-')
+        : `FA-${Date.now()}`);
+    if (numeroError && !numeroData) {
+      throw numeroError;
+    }
+
+    const { data: facture, error: factureError } = await supabase
+      .from('factures')
+      .insert({
+        devis_id: devisData.id,
+        client_id: devisData.client_id,
+        user_id: user.id,
+        numero,
+        total_ht: devisData.total_ht,
+        total_tva: devisData.total_tva,
+        total_ttc: devisData.total_ttc,
+      })
+      .select()
+      .single();
+    if (factureError) throw factureError;
+
+    const { data: lignes, error: lignesError } = await supabase
+      .from('lignes_devis')
+      .select('*')
+      .eq('devis_id', devisData.id);
+    if (lignesError) throw lignesError;
+
+    if (lignes?.length) {
+      const lignesFacture = lignes.map((ligne) => ({
+        facture_id: facture.id,
+        designation: ligne.designation,
+        quantite: ligne.quantite,
+        prix_unitaire_ht: ligne.prix_unitaire_ht,
+        taux_tva: ligne.taux_tva,
+        fournisseur_id: ligne.fournisseur_id,
+        ordre: ligne.ordre,
+      }));
+      const { error: insertError } = await supabase
+        .from('lignes_factures')
+        .insert(lignesFacture);
+      if (insertError) throw insertError;
+    }
+
+    return facture;
+  };
+
+  const handleCreateFactureFromDevis = async () => {
+    if (!selectedDevisId) {
+      toast.error('Sélectionnez un devis');
+      return;
+    }
+
+    try {
+      setCreatingFacture(true);
+      toast.loading('Création de la facture...', { id: 'create-facture' });
+
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('Session expirée');
+      }
+
+      const facture = await creerFactureDepuisDevis(selectedDevisId);
+
+      toast.success('Facture créée avec succès', { id: 'create-facture' });
+      setShowCreateModal(false);
+      setSelectedDevisId('');
+      fetchFactures();
+      if (facture?.id) {
+        router.push(`/factures/${facture.id}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message, { id: 'create-facture' });
+    } finally {
+      setCreatingFacture(false);
+    }
   };
 
   if (authLoading || loading) {
@@ -295,62 +337,67 @@ export default function FacturesPage() {
                     </td>
                   </tr>
                 ) : (
-                  factures.map((f) => (
-                    <tr key={f.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {f.numero}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(f.date_emission).toLocaleDateString('fr-FR')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {getStatusBadge(f.statut)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                        {f.total_ht.toFixed(2)} €
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
-                        {f.total_ttc.toFixed(2)} €
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex flex-wrap items-center justify-end gap-3 whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => handleViewFacture(f.id)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Voir
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePrintFacture(f.id)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            Imprimer PDF
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePaiementFacture(f.id, 'acompte')}
-                            className="text-yellow-600 hover:text-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={f.statut === 'payee' || f.statut === 'annulee'}
-                          >
-                            Acompte
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePaiementFacture(f.id, 'solde')}
-                            className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={f.statut === 'payee' || f.statut === 'annulee'}
-                          >
-                            Solde
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  factures.map((f) => {
+                    const status = getFactureStatus(f);
+                    return (
+                      <tr key={f.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {f.numero}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(f.date_emission).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {f.date_echeance ? new Date(f.date_echeance).toLocaleDateString('fr-FR') : '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 py-1 text-xs font-medium rounded ${status.className}`}>
+                            {status.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                          {f.total_ht.toFixed(2)} €
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
+                          {f.total_ttc.toFixed(2)} €
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex flex-wrap items-center justify-end gap-3 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleViewFacture(f.id)}
+                              className="text-blue-600 hover:text-blue-900"
+                            >
+                              Voir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePrintFacture(f.id)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                            >
+                              Imprimer
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePaiementFacture(f.id, 'acompte')}
+                              className="text-yellow-600 hover:text-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={f.statut === 'payee' || f.statut === 'annulee'}
+                            >
+                              Acompte
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePaiementFacture(f.id, 'solde')}
+                              className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={f.statut === 'payee' || f.statut === 'annulee'}
+                            >
+                              Solde
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -361,18 +408,18 @@ export default function FacturesPage() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-lg w-full p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Creer une facture</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Créer une facture</h2>
 
             {loadingDevis ? (
               <div className="text-sm text-gray-600">Chargement des devis...</div>
             ) : eligibleDevis.length === 0 ? (
               <div className="text-sm text-gray-600">
-                Aucun devis accepte disponible.
+                Aucun devis accepté disponible.
               </div>
             ) : (
               <div className="space-y-2">
                 <label htmlFor="devis-facture" className="block text-sm font-medium text-gray-700">
-                  Devis accepte
+                  Devis accepté
                 </label>
                 <select
                   id="devis-facture"
@@ -380,7 +427,7 @@ export default function FacturesPage() {
                   onChange={(e) => setSelectedDevisId(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
-                  <option value="">Selectionner un devis</option>
+                  <option value="">Sélectionner un devis</option>
                   {eligibleDevis.map((d) => {
                     const clientLabel = d.client?.societe || d.client?.nom || 'Client';
                     return (
@@ -400,7 +447,7 @@ export default function FacturesPage() {
                   setShowCreateModal(false);
                   setSelectedDevisId('');
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 bg-white text-gray-700"
               >
                 Annuler
               </button>
@@ -410,7 +457,7 @@ export default function FacturesPage() {
                 disabled={creatingFacture || loadingDevis || !selectedDevisId}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {creatingFacture ? 'Creation...' : 'Creer la facture'}
+                {creatingFacture ? 'Création...' : 'Créer la facture'}
               </button>
             </div>
           </div>
