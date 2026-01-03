@@ -136,11 +136,17 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        throw new Error('Session expirée');
+      }
+
       const { error } = await supabase
         .from('paiements')
         .insert({
           facture_id: facture.id,
-          user_id: user!.id,
+          user_id: session.user.id,
           montant,
           mode_paiement: modePaiement,
           reference: referencePaiement || null,
