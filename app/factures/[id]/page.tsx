@@ -569,7 +569,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
                   setReferencePaiement('');
                   setNotesPaiement('');
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50"
               >
                 Annuler
               </button>
