@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import Stripe from 'npm:stripe@14.11.0';
-import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,7 +36,7 @@ serve(async (req: Request) => {
     } = await supabaseClient.auth.getUser();
 
     if (!user) {
-      throw new Error('Non authentifié');
+      throw new Error('Non authentifiÃ©');
     }
 
     const { plan } = await req.json();

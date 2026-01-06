@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js@2.89.0/edge-runtime.d.ts";
-import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,14 +23,14 @@ Deno.serve(async (req: Request) => {
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Non authentifié');
+      throw new Error('Non authentifiÃ©');
     }
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user } } = await supabaseClient.auth.getUser(token);
 
     if (!user) {
-      throw new Error('Non authentifié');
+      throw new Error('Non authentifiÃ©');
     }
 
     const { devis_id } = await req.json();

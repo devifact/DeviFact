@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js@2.89.0/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.11.0";
-import { createClient } from "npm:@supabase/supabase-js@2.39.0";
+import { createClient } from "npm:@supabase/supabase-js@2.89.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +36,7 @@ Deno.serve(async (req: Request) => {
     } = await supabaseClient.auth.getUser();
 
     if (!user) {
-      throw new Error("Non authentifié");
+      throw new Error("Non authentifiÃ©");
     }
 
     const { plan } = await req.json();
@@ -56,11 +56,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (abonnement.statut === "trial") {
-      throw new Error("L'option premium n'est pas disponible pendant la période d'essai. Veuillez d'abord souscrire à l'abonnement principal.");
+      throw new Error("L'option premium n'est pas disponible pendant la pÃ©riode d'essai. Veuillez d'abord souscrire Ã  l'abonnement principal.");
     }
 
     if (abonnement.statut !== "active") {
-      throw new Error("Votre abonnement principal doit être actif pour souscrire à l'option premium.");
+      throw new Error("Votre abonnement principal doit Ãªtre actif pour souscrire Ã  l'option premium.");
     }
 
     if (!abonnement.stripe_customer_id) {
@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
       : Deno.env.get("STRIPE_PREMIUM_PRICE_ANNUAL");
 
     if (!premiumPriceId) {
-      throw new Error("Les prix premium Stripe ne sont pas configurés. Veuillez configurer STRIPE_PREMIUM_PRICE_MONTHLY et STRIPE_PREMIUM_PRICE_ANNUAL.");
+      throw new Error("Les prix premium Stripe ne sont pas configurÃ©s. Veuillez configurer STRIPE_PREMIUM_PRICE_MONTHLY et STRIPE_PREMIUM_PRICE_ANNUAL.");
     }
 
     const session = await stripe.checkout.sessions.create({

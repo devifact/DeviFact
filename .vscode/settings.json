@@ -1,5 +1,21 @@
 {
-  "deno.enable": false,
+  "deno.enable": true,
+  "deno.enablePaths": ["supabase/functions"],
+  "deno.disablePaths": [
+    "app",
+    "components",
+    "lib",
+    "node_modules",
+    ".next",
+    "public",
+    "scripts",
+    "middleware.ts",
+    "next-env.d.ts",
+    "types.d.ts",
+    "tailwind.config.ts",
+    "next.config.js",
+    "postcss.config.js"
+  ],
   "deno.unstable": false,
   "css.lint.unknownAtRules": "ignore",
   "scss.lint.unknownAtRules": "ignore",

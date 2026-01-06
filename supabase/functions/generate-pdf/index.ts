@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'npm:@supabase/supabase-js@2.39.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 import { PDFDocument, PDFFont, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 
 const corsHeaders = {
@@ -392,7 +392,11 @@ serve(async (req: Request) => {
     }
 
     const pdfBytes = await generatePdf(type, document, profile, client, lignes, isTrialMode);
-    const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const pdfBuffer = pdfBytes.buffer.slice(
+      pdfBytes.byteOffset,
+      pdfBytes.byteOffset + pdfBytes.byteLength
+    );
+    const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
 
     return new Response(pdfBlob, {
       headers: {

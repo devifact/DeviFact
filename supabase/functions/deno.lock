@@ -2,10 +2,10 @@
   "version": "5",
   "specifiers": {
     "jsr:@supabase/functions-js@*": "2.89.0",
-    "npm:@supabase/supabase-js@2.39.0": "2.39.0",
     "npm:openai@^4.52.5": "4.104.0",
     "npm:puppeteer@21.6.1": "21.6.1",
-    "npm:stripe@14.11.0": "14.11.0"
+    "npm:stripe@14.11.0": "14.11.0",
+    "npm:@supabase/supabase-js@2.89.0": "2.89.0"
   },
   "jsr": {
     "@supabase/functions-js@2.89.0": {
@@ -78,17 +78,6 @@
       "dependencies": [
         "iceberg-js",
         "tslib"
-      ]
-    },
-    "@supabase/supabase-js@2.39.0": {
-      "integrity": "sha512-cYfnwWRW5rYBbPT/BNIejtRT9ULdD9PnIExQV28PZpqcqm3PLwS4f3pY7WGB01Da63VYdvktZPKuYvreqsj/Zg==",
-      "dependencies": [
-        "@supabase/functions-js",
-        "@supabase/gotrue-js",
-        "@supabase/node-fetch",
-        "@supabase/postgrest-js",
-        "@supabase/realtime-js",
-        "@supabase/storage-js"
       ]
     },
     "@tootallnate/quickjs-emscripten@0.23.0": {
@@ -861,6 +850,17 @@
       "dependencies": [
         "buffer-crc32",
         "fd-slicer"
+      ]
+    },
+    "@supabase/supabase-js@2.89.0": {
+      "integrity": "sha512-KlaRwSfFA0fD73PYVMHj5/iXFtQGCcX7PSx0FdQwYEEw9b2wqM7GxadY+5YwcmuEhalmjFB/YvqaoNVF+sWUlg==",
+      "dependencies": [
+        "@supabase/functions-js",
+        "@supabase/gotrue-js",
+        "@supabase/node-fetch",
+        "@supabase/postgrest-js",
+        "@supabase/realtime-js",
+        "@supabase/storage-js"
       ]
     }
   },
