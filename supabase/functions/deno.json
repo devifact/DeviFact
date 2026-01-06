@@ -1,5 +1,5 @@
 {
-  "nodeModulesDir": true,
+  "nodeModulesDir": "auto",
   "lint": {
     "rules": {
       "exclude": ["no-import-prefix"]

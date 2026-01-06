@@ -2,10 +2,13 @@
   "version": "5",
   "specifiers": {
     "jsr:@supabase/functions-js@*": "2.89.0",
+    "jsr:@supabase/functions-js@2.89.0": "2.89.0",
+    "npm:@supabase/auth-js@2.89.0": "2.89.0",
+    "npm:@supabase/supabase-js@2.89.0": "2.89.0",
     "npm:openai@^4.52.5": "4.104.0",
+    "npm:pdf-lib@1.17.1": "1.17.1",
     "npm:puppeteer@21.6.1": "21.6.1",
-    "npm:stripe@14.11.0": "14.11.0",
-    "npm:@supabase/supabase-js@2.89.0": "2.89.0"
+    "npm:stripe@14.11.0": "14.11.0"
   },
   "jsr": {
     "@supabase/functions-js@2.89.0": {
@@ -27,6 +30,18 @@
     "@babel/helper-validator-identifier@7.28.5": {
       "integrity": "sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q=="
     },
+    "@pdf-lib/standard-fonts@1.0.0": {
+      "integrity": "sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==",
+      "dependencies": [
+        "pako"
+      ]
+    },
+    "@pdf-lib/upng@1.0.1": {
+      "integrity": "sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==",
+      "dependencies": [
+        "pako"
+      ]
+    },
     "@puppeteer/browsers@1.9.0": {
       "integrity": "sha512-QwguOLy44YBGC8vuPP2nmpX4MUN2FzWbsnvZJtiCzecU3lHmVZkaC1tq6rToi9a200m8RzlVtDyxCS0UIDrxUg==",
       "dependencies": [
@@ -40,16 +55,22 @@
       ],
       "bin": true
     },
+    "@supabase/auth-js@2.89.0": {
+      "integrity": "sha512-wiWZdz8WMad8LQdJMWYDZ2SJtZP5MwMqzQq3ehtW2ngiI3UTgbKiFrvMUUS3KADiVlk4LiGfODB2mrYx7w2f8w==",
+      "dependencies": [
+        "tslib@2.8.1"
+      ]
+    },
     "@supabase/functions-js@2.89.0": {
       "integrity": "sha512-XEueaC5gMe5NufNYfBh9kPwJlP5M2f+Ogr8rvhmRDAZNHgY6mI35RCkYDijd92pMcNM7g8pUUJov93UGUnqfyw==",
       "dependencies": [
-        "tslib"
+        "tslib@2.8.1"
       ]
     },
     "@supabase/gotrue-js@2.89.0": {
       "integrity": "sha512-5HHrvX5YbV3Ou31NLuIIAaZ7LUJmXDFq4E3X0CE7Df9fBP/vi9M0IiYfDPr367I6/R8SZ4EqgYor4ofxI7JitQ==",
       "dependencies": [
-        "tslib"
+        "tslib@2.8.1"
       ]
     },
     "@supabase/node-fetch@2.6.15": {
@@ -69,7 +90,7 @@
       "dependencies": [
         "@types/phoenix",
         "@types/ws",
-        "tslib",
+        "tslib@2.8.1",
         "ws@8.18.3"
       ]
     },
@@ -77,7 +98,18 @@
       "integrity": "sha512-6zKcXofk/M/4Eato7iqpRh+B+vnxeiTumCIP+Tz26xEqIiywzD9JxHq+udRrDuv6hXE+pmetvJd8n5wcf4MFRQ==",
       "dependencies": [
         "iceberg-js",
-        "tslib"
+        "tslib@2.8.1"
+      ]
+    },
+    "@supabase/supabase-js@2.89.0": {
+      "integrity": "sha512-KlaRwSfFA0fD73PYVMHj5/iXFtQGCcX7PSx0FdQwYEEw9b2wqM7GxadY+5YwcmuEhalmjFB/YvqaoNVF+sWUlg==",
+      "dependencies": [
+        "@supabase/functions-js",
+        "@supabase/gotrue-js",
+        "@supabase/node-fetch",
+        "@supabase/postgrest-js",
+        "@supabase/realtime-js",
+        "@supabase/storage-js"
       ]
     },
     "@tootallnate/quickjs-emscripten@0.23.0": {
@@ -147,7 +179,7 @@
     "ast-types@0.13.4": {
       "integrity": "sha512-x1FCFnFifvYDDzTaLII71vG5uvDwgtmDTEVWAxrgeiR8VjMONcCXJx7E+USjDtHlwFmt9MysbqgF9b9Vjr6w+w==",
       "dependencies": [
-        "tslib"
+        "tslib@2.8.1"
       ]
     },
     "asynckit@0.4.0": {
@@ -580,6 +612,9 @@
         "netmask"
       ]
     },
+    "pako@1.0.11": {
+      "integrity": "sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw=="
+    },
     "parent-module@1.0.1": {
       "integrity": "sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==",
       "dependencies": [
@@ -597,6 +632,15 @@
     },
     "path-type@4.0.0": {
       "integrity": "sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw=="
+    },
+    "pdf-lib@1.17.1": {
+      "integrity": "sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==",
+      "dependencies": [
+        "@pdf-lib/standard-fonts",
+        "@pdf-lib/upng",
+        "pako",
+        "tslib@1.14.1"
+      ]
     },
     "pend@1.2.0": {
       "integrity": "sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg=="
@@ -778,6 +822,9 @@
     "tr46@0.0.3": {
       "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw=="
     },
+    "tslib@1.14.1": {
+      "integrity": "sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg=="
+    },
     "tslib@2.8.1": {
       "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="
     },
@@ -850,17 +897,6 @@
       "dependencies": [
         "buffer-crc32",
         "fd-slicer"
-      ]
-    },
-    "@supabase/supabase-js@2.89.0": {
-      "integrity": "sha512-KlaRwSfFA0fD73PYVMHj5/iXFtQGCcX7PSx0FdQwYEEw9b2wqM7GxadY+5YwcmuEhalmjFB/YvqaoNVF+sWUlg==",
-      "dependencies": [
-        "@supabase/functions-js",
-        "@supabase/gotrue-js",
-        "@supabase/node-fetch",
-        "@supabase/postgrest-js",
-        "@supabase/realtime-js",
-        "@supabase/storage-js"
       ]
     }
   },
