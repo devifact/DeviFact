@@ -11,14 +11,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, stripe-signature",
 };
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2023-10-16",
 });
-
-const supabaseClient = createClient(
-  Deno.env.get("SUPABASE_URL") ?? "",
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-);
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -29,6 +28,14 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    if (!stripeSecretKey) {
+      throw new Error("Stripe secret key not configured");
+    }
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error("Supabase environment is not configured");
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey);
     const signature = req.headers.get("stripe-signature");
     if (!signature) {
       throw new Error("Missing stripe-signature header");
@@ -62,7 +69,7 @@ Deno.serve(async (req: Request) => {
 
         if (isPremium) {
           const premiumPlan = session.metadata?.premium_plan;
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               stripe_premium_subscription_id: session.subscription as string,
@@ -72,11 +79,14 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Premium option activated for user:", userId);
         } else {
           const plan = session.metadata?.plan;
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               stripe_customer_id: session.customer as string,
@@ -87,6 +97,9 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Subscription activated for user:", userId);
         }
@@ -109,7 +122,7 @@ Deno.serve(async (req: Request) => {
         const isPremiumSub = subscription.metadata?.is_premium === "true";
 
         if (isPremiumSub) {
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               stripe_premium_subscription_id: subscription.id,
@@ -119,10 +132,13 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Premium subscription created for user:", userId);
         } else {
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               stripe_subscription_id: subscription.id,
@@ -132,6 +148,9 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Subscription created for user:", userId);
         }
@@ -151,13 +170,16 @@ Deno.serve(async (req: Request) => {
           break;
         }
 
-        await supabaseClient
+        const { error: updateError } = await supabaseClient
           .from("abonnements")
           .update({
             statut: "active",
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", userId);
+        if (updateError) {
+          throw new Error(updateError.message);
+        }
 
         console.log("Invoice paid for user:", userId);
         break;
@@ -176,14 +198,20 @@ Deno.serve(async (req: Request) => {
           break;
         }
 
-        const { data: abonnement } = await supabaseClient
+        const { data: abonnement, error: abonnementError } = await supabaseClient
           .from("abonnements")
           .select("stripe_subscription_id, stripe_premium_subscription_id")
           .eq("user_id", userId)
           .single();
+        if (abonnementError) {
+          throw new Error(abonnementError.message);
+        }
+        if (!abonnement) {
+          throw new Error("Abonnement introuvable");
+        }
 
         if (abonnement?.stripe_premium_subscription_id === subscription.id) {
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               option_premium_active: false,
@@ -192,10 +220,13 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Premium subscription canceled for user:", userId);
         } else {
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               statut: "canceled",
@@ -204,6 +235,9 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Subscription canceled for user:", userId);
         }
@@ -223,17 +257,23 @@ Deno.serve(async (req: Request) => {
           break;
         }
 
-        const { data: abonnement } = await supabaseClient
+        const { data: abonnement, error: abonnementError } = await supabaseClient
           .from("abonnements")
           .select("stripe_subscription_id, stripe_premium_subscription_id")
           .eq("user_id", userId)
           .single();
+        if (abonnementError) {
+          throw new Error(abonnementError.message);
+        }
+        if (!abonnement) {
+          throw new Error("Abonnement introuvable");
+        }
 
         const isPremiumSub = abonnement?.stripe_premium_subscription_id === subscription.id;
 
         if (isPremiumSub) {
           const premiumActive = subscription.status === "active";
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               option_premium_active: premiumActive,
@@ -241,6 +281,9 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Premium subscription updated for user:", userId);
         } else {
@@ -251,7 +294,7 @@ Deno.serve(async (req: Request) => {
             statut = "expired";
           }
 
-          await supabaseClient
+          const { error: updateError } = await supabaseClient
             .from("abonnements")
             .update({
               statut: statut,
@@ -259,6 +302,9 @@ Deno.serve(async (req: Request) => {
               updated_at: new Date().toISOString(),
             })
             .eq("user_id", userId);
+          if (updateError) {
+            throw new Error(updateError.message);
+          }
 
           console.log("Subscription updated for user:", userId);
         }
