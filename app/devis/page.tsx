@@ -4,23 +4,35 @@ import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
-import { supabase, supabaseAnonKey } from '@/lib/supabase.ts';
+import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import type { Database } from '@/lib/database.types.ts';
 
 type Devis = Database['public']['Tables']['devis']['Row'];
+type ClientPreview = {
+  nom: string;
+  societe: string | null;
+} | null;
+type DevisWithRelations = Devis & {
+  client: ClientPreview | ClientPreview[];
+  factures?: { id: string }[] | null;
+};
+type DevisWithClient = Devis & {
+  client: ClientPreview;
+  hasInvoice: boolean;
+};
 
 export default function DevisPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
   const router = useRouter();
-  const [devis, setDevis] = useState<Devis[]>([]);
+  const [devis, setDevis] = useState<DevisWithClient[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
   const [factureLoadingId, setFactureLoadingId] = useState<string | null>(null);
-  const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const fetchDevis = useCallback(async () => {
     if (!user) return;
@@ -29,12 +41,21 @@ export default function DevisPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('devis')
-        .select('*')
+        .select('*, client:clients(nom, societe), factures(id)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setDevis(data || []);
+      const devisData = ((data || []) as DevisWithRelations[]).map((d) => {
+        const factures = Array.isArray(d.factures) ? d.factures : [];
+        return {
+          ...d,
+          client: Array.isArray(d.client) ? d.client[0] : d.client,
+          hasInvoice: factures.length > 0,
+        };
+      }) as DevisWithClient[];
+      setDevis(devisData);
+      setSelectedIds([]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
       toast.error(message);
@@ -82,67 +103,8 @@ export default function DevisPage() {
     router.push(`/devis/${devisId}`);
   };
 
-  const handleDownloadPdf = async (devisId: string, numero: string) => {
-    if (pdfLoadingId === devisId) return;
-    setPdfLoadingId(devisId);
-
-    try {
-      toast.loading('Génération du PDF en cours...', { id: `pdf-${devisId}` });
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        throw new Error('Session expirée');
-      }
-
-      // deno-lint-ignore no-process-global
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('Supabase URL manquante');
-      }
-
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/generate-pdf`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              apikey: supabaseAnonKey,
-              'Content-Type': 'application/json',
-            },
-          body: JSON.stringify({
-            type: 'devis',
-            id: devisId,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur lors de la génération du PDF');
-      }
-
-      const blob = await response.blob();
-      const doc = globalThis.document;
-      if (!doc) {
-        throw new Error('Telechargement indisponible');
-      }
-      const url = URL.createObjectURL(blob);
-      const a = doc.createElement('a');
-      a.href = url;
-      a.download = `devis-${numero}.pdf`;
-      doc.body?.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      a.remove();
-
-      toast.success('PDF téléchargé avec succès', { id: `pdf-${devisId}` });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue';
-      toast.error(message, { id: `pdf-${devisId}` });
-    } finally {
-      setPdfLoadingId(null);
-    }
+  const handlePrintDevis = (devisId: string) => {
+    router.push(`/devis/${devisId}?print=1`);
   };
 
   const handleDeleteDevis = async (devisId: string, numero: string) => {
@@ -153,8 +115,8 @@ export default function DevisPage() {
       return;
     }
 
-    if (deleteLoadingId === devisId) return;
-    setDeleteLoadingId(devisId);
+    if (deleteLoading) return;
+    setDeleteLoading(true);
 
     try {
       const { error } = await supabase
@@ -171,8 +133,107 @@ export default function DevisPage() {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
       toast.error(message);
     } finally {
-      setDeleteLoadingId(null);
+      setDeleteLoading(false);
     }
+  };
+
+  const handleDeleteSelectedDevis = async (selected: DevisWithClient[]) => {
+    if (!selected.length) return;
+
+    const confirmDelete = globalThis.confirm?.(
+      `Confirmer la suppression de ${selected.length} devis ?`
+    );
+    if (!confirmDelete) {
+      return;
+    }
+
+    if (deleteLoading) return;
+    setDeleteLoading(true);
+
+    try {
+      const ids = selected.map((d) => d.id);
+      const { error } = await supabase
+        .from('devis')
+        .delete()
+        .in('id', ids)
+        .eq('user_id', user!.id);
+
+      if (error) throw error;
+
+      toast.success('Devis supprimes avec succes');
+      setSelectedIds([]);
+      fetchDevis();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === devis.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(devis.map((d) => d.id));
+    }
+  };
+
+  const toggleSelectDevis = (devisId: string) => {
+    setSelectedIds((prev) => (
+      prev.includes(devisId)
+        ? prev.filter((id) => id !== devisId)
+        : [...prev, devisId]
+    ));
+  };
+
+  const getSingleSelection = (actionLabel: string) => {
+    if (selectedIds.length !== 1) {
+      toast.error(`Selectionnez un seul devis pour ${actionLabel}`);
+      return null;
+    }
+    const selected = devis.find((d) => d.id === selectedIds[0]);
+    return selected || null;
+  };
+
+  const handleActionFacturer = async () => {
+    const selected = getSingleSelection('facturer');
+    if (!selected) return;
+    await handleFacturer(selected.id, selected.statut);
+  };
+
+  const handleActionModifier = () => {
+    const selected = getSingleSelection('modifier');
+    if (!selected) return;
+    if (selected.hasInvoice) return;
+    router.push(`/devis/nouveau?edit=${encodeURIComponent(selected.id)}`);
+  };
+
+  const handleActionDelete = async () => {
+    if (!selectedIds.length) {
+      toast.error('Selectionnez au moins un devis');
+      return;
+    }
+    const selected = devis.filter((d) => selectedIds.includes(d.id));
+    if (selected.length === 1) {
+      await handleDeleteDevis(selected[0].id, selected[0].numero);
+      return;
+    }
+    await handleDeleteSelectedDevis(selected);
+  };
+
+  const handleActionPrint = () => {
+    if (!selectedIds.length) {
+      return;
+    }
+    const selected = devis.filter((d) => selectedIds.includes(d.id));
+    if (selected.length === 1) {
+      handlePrintDevis(selected[0].id);
+      return;
+    }
+    selected.forEach((item) => {
+      window.open(`/devis/${item.id}?print=1`, '_blank', 'noopener,noreferrer');
+    });
   };
 
   const handleFacturer = async (devisId: string, statut: Devis['statut']) => {
@@ -245,6 +306,16 @@ export default function DevisPage() {
     return null;
   }
 
+  const allSelected = devis.length > 0 && selectedIds.length === devis.length;
+  const selectedSingle = selectedIds.length === 1
+    ? devis.find((d) => d.id === selectedIds[0]) ?? null
+    : null;
+  const hasSelection = selectedIds.length > 0;
+  const canFacturer = !!selectedSingle && selectedSingle.statut === 'accepte';
+  const canModifier = !!selectedSingle && !selectedSingle.hasInvoice;
+  const canPrint = hasSelection;
+  const isFacturerLoading = !!selectedSingle && factureLoadingId === selectedSingle.id;
+
   return (
     <DashboardLayout>
       <div>
@@ -271,12 +342,62 @@ export default function DevisPage() {
         )}
 
         <div className="bg-white rounded-lg shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-6 py-4">
+            <span className="text-sm text-gray-600">
+              Selection: {selectedIds.length}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleActionFacturer}
+                disabled={!canFacturer || isFacturerLoading}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Facturer
+              </button>
+              <button
+                type="button"
+                onClick={handleActionModifier}
+                disabled={!canModifier}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Modifier
+              </button>
+              <button
+                type="button"
+                onClick={handleActionDelete}
+                disabled={!hasSelection || deleteLoading}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Supprimer
+              </button>
+              <button
+                type="button"
+                onClick={handleActionPrint}
+                disabled={!canPrint}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Imprimer
+              </button>
+            </div>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] divide-y divide-gray-200">
+            <table className="w-full min-w-[860px] divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleSelectAll}
+                    aria-label="Selectionner tous les devis"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Numéro
+                  Numero
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Client
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date
@@ -290,23 +411,36 @@ export default function DevisPage() {
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total TTC
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {devis.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     Aucun devis
                   </td>
                 </tr>
               ) : (
                 devis.map((d) => (
-                  <tr key={d.id}>
+                  <tr
+                    key={d.id}
+                    onClick={() => handleViewDevis(d.id)}
+                    className="cursor-pointer hover:bg-gray-50"
+                  >
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(d.id)}
+                        onChange={() => toggleSelectDevis(d.id)}
+                        onClick={(event) => event.stopPropagation()}
+                        aria-label={`Selectionner le devis ${d.numero}`}
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {d.numero}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {d.client?.societe || d.client?.nom || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(d.date_creation).toLocaleDateString('fr-FR')}
@@ -320,45 +454,7 @@ export default function DevisPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
                       {d.total_ttc.toFixed(2)} €
                     </td>
-                    <td className="px-6 py-4 text-center text-sm font-medium">
-                      <div className="flex flex-wrap items-center justify-center gap-3 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleViewDevis(d.id)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Voir le devis"
-                        >
-                          Voir
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadPdf(d.id, d.numero)}
-                          className="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={pdfLoadingId === d.id}
-                          title="Télécharger en PDF"
-                        >
-                          PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleFacturer(d.id, d.statut)}
-                          className="text-indigo-600 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Créer une facture"
-                          disabled={d.statut !== 'accepte' || factureLoadingId === d.id}
-                        >
-                          Facturer
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteDevis(d.id, d.numero)}
-                          className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={deleteLoadingId === d.id}
-                          title="Supprimer le devis"
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </td>
+                    
                   </tr>
                 ))
               )}

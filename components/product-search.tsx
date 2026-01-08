@@ -13,9 +13,13 @@ type Produit = {
   type: 'standard' | 'custom' | null;
   prix_ht_defaut: number | null;
   taux_tva_defaut: number | null;
+  marge_defaut: number | null;
   fournisseur_defaut_id: string | null;
   fournisseur_nom?: string | null;
   actif: boolean | null;
+  stock_actuel: number | null;
+  stock_minimum: number | null;
+  gestion_stock: boolean | null;
 };
 
 type ProduitWithFournisseur = Produit & {
@@ -38,8 +42,12 @@ const normalizeProduct = (product: ProduitWithFournisseur): Produit => {
     ...product,
     prix_ht_defaut: product.prix_ht_defaut !== null ? Number(product.prix_ht_defaut) : null,
     taux_tva_defaut: product.taux_tva_defaut !== null ? Number(product.taux_tva_defaut) : null,
+    marge_defaut: product.marge_defaut !== null ? Number(product.marge_defaut) : null,
     actif: product.actif ?? true,
     fournisseur_nom: fournisseur ?? null,
+    stock_actuel: product.stock_actuel !== null ? Number(product.stock_actuel) : null,
+    stock_minimum: product.stock_minimum !== null ? Number(product.stock_minimum) : null,
+    gestion_stock: product.gestion_stock ?? false,
   };
 };
 
@@ -93,8 +101,12 @@ export function ProductSearch({ onSelectProduct, placeholder = "Rechercher un pr
               type,
               prix_ht_defaut,
               taux_tva_defaut,
+              marge_defaut,
               fournisseur_defaut_id,
               actif,
+              stock_actuel,
+              stock_minimum,
+              gestion_stock,
               fournisseur:fournisseurs(nom)
             `)
             .eq('user_id', user.id)

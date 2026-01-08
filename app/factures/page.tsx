@@ -11,6 +11,13 @@ import Link from 'next/link';
 import type { Database } from '@/lib/database.types.ts';
 
 type Facture = Database['public']['Tables']['factures']['Row'];
+type ClientPreview = {
+  nom: string;
+  societe: string | null;
+} | null;
+type FactureWithClient = Facture & {
+  client: ClientPreview;
+};
 type DevisForFacture = {
   id: string;
   numero: string;
@@ -28,13 +35,15 @@ export default function FacturesPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
   const router = useRouter();
-  const [factures, setFactures] = useState<Facture[]>([]);
+  const [factures, setFactures] = useState<FactureWithClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [eligibleDevis, setEligibleDevis] = useState<DevisForFacture[]>([]);
   const [selectedDevisId, setSelectedDevisId] = useState('');
   const [loadingDevis, setLoadingDevis] = useState(false);
   const [creatingFacture, setCreatingFacture] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const fetchFactures = useCallback(async () => {
     if (!user) return;
@@ -43,12 +52,17 @@ export default function FacturesPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('factures')
-        .select('*')
+        .select('*, client:clients(nom, societe)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setFactures(data || []);
+      const facturesData = ((data || []) as FactureWithClient[]).map((f) => ({
+        ...f,
+        client: Array.isArray(f.client) ? f.client[0] : f.client,
+      }));
+      setFactures(facturesData);
+      setSelectedIds([]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue';
       toast.error(message);
@@ -218,8 +232,129 @@ export default function FacturesPage() {
     router.push(`/factures/${factureId}?print=1`);
   };
 
-  const handlePaiementFacture = (factureId: string, type: 'acompte' | 'solde') => {
-    router.push(`/factures/${factureId}?paiement=${type}`);
+  const handleDeleteFacture = async (factureId: string, numero: string) => {
+    const confirmDelete = globalThis.confirm?.(
+      `Confirmer la suppression de la facture ${numero} ?`
+    );
+    if (!confirmDelete) {
+      return;
+    }
+
+    if (deleteLoading) return;
+    setDeleteLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from('factures')
+        .delete()
+        .eq('id', factureId)
+        .eq('user_id', user!.id);
+
+      if (error) throw error;
+
+      toast.success('Facture supprimee avec succes');
+      fetchFactures();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleDeleteSelectedFactures = async (selected: FactureWithClient[]) => {
+    if (!selected.length) return;
+
+    const confirmDelete = globalThis.confirm?.(
+      `Confirmer la suppression de ${selected.length} factures ?`
+    );
+    if (!confirmDelete) {
+      return;
+    }
+
+    if (deleteLoading) return;
+    setDeleteLoading(true);
+
+    try {
+      const ids = selected.map((f) => f.id);
+      const { error } = await supabase
+        .from('factures')
+        .delete()
+        .in('id', ids)
+        .eq('user_id', user!.id);
+
+      if (error) throw error;
+
+      toast.success('Factures supprimees avec succes');
+      setSelectedIds([]);
+      fetchFactures();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue';
+      toast.error(message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === factures.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(factures.map((f) => f.id));
+    }
+  };
+
+  const toggleSelectFacture = (factureId: string) => {
+    setSelectedIds((prev) => (
+      prev.includes(factureId)
+        ? prev.filter((id) => id !== factureId)
+        : [...prev, factureId]
+    ));
+  };
+
+  const getSingleSelection = (actionLabel: string) => {
+    if (selectedIds.length !== 1) {
+      toast.error(`Selectionnez une seule facture pour ${actionLabel}`);
+      return null;
+    }
+    const selected = factures.find((f) => f.id === selectedIds[0]);
+    return selected || null;
+  };
+
+  const handleActionFacturer = () => {
+    toast.error('Action indisponible sur les factures');
+  };
+
+  const handleActionModifier = () => {
+    const selected = getSingleSelection('modifier');
+    if (!selected) return;
+    handleViewFacture(selected.id);
+  };
+
+  const handleActionDelete = async () => {
+    if (!selectedIds.length) {
+      return;
+    }
+    const selected = factures.filter((f) => selectedIds.includes(f.id));
+    if (selected.length === 1) {
+      await handleDeleteFacture(selected[0].id, selected[0].numero);
+      return;
+    }
+    await handleDeleteSelectedFactures(selected);
+  };
+
+  const handleActionPrint = () => {
+    if (!selectedIds.length) {
+      return;
+    }
+    const selected = factures.filter((f) => selectedIds.includes(f.id));
+    if (selected.length === 1) {
+      handlePrintFacture(selected[0].id);
+      return;
+    }
+    selected.forEach((item) => {
+      window.open(`/factures/${item.id}?print=1`, '_blank', 'noopener,noreferrer');
+    });
   };
 
   if (authLoading || loading) {
@@ -233,6 +368,13 @@ export default function FacturesPage() {
   if (!user) {
     return null;
   }
+
+  const allSelected = factures.length > 0 && selectedIds.length === factures.length;
+  const hasSelection = selectedIds.length > 0;
+  const canFacturer = false;
+  const canModifier = false;
+  const canPrint = hasSelection;
+  const canDelete = hasSelection && !deleteLoading;
 
   return (
     <DashboardLayout>
@@ -260,18 +402,70 @@ export default function FacturesPage() {
         )}
 
         <div className="bg-white rounded-lg shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-6 py-4">
+            <span className="text-sm text-gray-600">
+              Selection: {selectedIds.length}
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleActionFacturer}
+                disabled={!canFacturer}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Action disponible sur les devis"
+              >
+                Facturer
+              </button>
+              <button
+                type="button"
+                onClick={handleActionModifier}
+                disabled={!canModifier}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Action indisponible sur les factures"
+              >
+                Modifier
+              </button>
+              <button
+                type="button"
+                onClick={handleActionDelete}
+                disabled={!canDelete}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Supprimer
+              </button>
+              <button
+                type="button"
+                onClick={handleActionPrint}
+                disabled={!canPrint}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Imprimer
+              </button>
+            </div>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] divide-y divide-gray-200">
+            <table className="w-full min-w-[980px] divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Selectionner toutes les factures"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Numéro
+                    Numero
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Client
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Échéance
+                    Echeance
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Statut
@@ -282,23 +476,36 @@ export default function FacturesPage() {
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total TTC
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {factures.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                       Aucune facture
                     </td>
                   </tr>
                 ) : (
                   factures.map((f) => (
-                    <tr key={f.id}>
+                    <tr
+                      key={f.id}
+                      onClick={() => handleViewFacture(f.id)}
+                      className="cursor-pointer hover:bg-gray-50"
+                    >
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(f.id)}
+                          onChange={() => toggleSelectFacture(f.id)}
+                          onClick={(event) => event.stopPropagation()}
+                          aria-label={`Selectionner la facture ${f.numero}`}
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {f.numero}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {f.client?.societe || f.client?.nom || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(f.date_emission).toLocaleDateString('fr-FR')}
@@ -315,40 +522,7 @@ export default function FacturesPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
                         {f.total_ttc.toFixed(2)} €
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex flex-wrap items-center justify-end gap-3 whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => handleViewFacture(f.id)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Voir
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePrintFacture(f.id)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            Imprimer PDF
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePaiementFacture(f.id, 'acompte')}
-                            className="text-yellow-600 hover:text-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={f.statut === 'payee' || f.statut === 'annulee'}
-                          >
-                            Acompte
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePaiementFacture(f.id, 'solde')}
-                            className="text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={f.statut === 'payee' || f.statut === 'annulee'}
-                          >
-                            Solde
-                          </button>
-                        </div>
-                      </td>
+                      
                     </tr>
                   ))
                 )}

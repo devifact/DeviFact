@@ -16,7 +16,6 @@ Elle permet de créer facilement des **devis et factures professionnels**, de g�
 - 📦 **Bibliothèque produits & fournisseurs** avec calcul automatique des marges
 - 💳 **Abonnement principal + option premium**
 - 📊 **Comptabilité simplifiée & gestion des stocks** (premium)
-- 🖨️ **PDF professionnels générés automatiquement**
 
 ---
 

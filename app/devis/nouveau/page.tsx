@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
+import { usePremium } from '@/lib/hooks/use-premium.ts';
 import { supabase } from '@/lib/supabase.ts';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { ProductSearch } from '@/components/product-search.tsx';
 import type { Database } from '@/lib/database.types.ts';
@@ -20,26 +21,50 @@ type ProduitSelection = {
   type: 'standard' | 'custom' | null;
   prix_ht_defaut: number | null;
   taux_tva_defaut: number | null;
+  marge_defaut: number | null;
   fournisseur_defaut_id: string | null;
   fournisseur_nom?: string | null;
   actif: boolean | null;
+  stock_actuel: number | null;
+  stock_minimum: number | null;
+  gestion_stock: boolean | null;
 };
 type LigneDevis = {
   id: string;
   designation: string;
+  reference: string;
+  unite: string;
   quantite: number;
   prix_unitaire_ht: number;
   taux_tva: number;
+  marge_pourcentage: number;
   fournisseur_id?: string;
+  produit_id?: string | null;
+  stock_actuel?: number | null;
+  stock_minimum?: number | null;
+  gestion_stock?: boolean | null;
   showProductSearch?: boolean;
+};
+
+const formatDateValue = (value: string | null) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) return '';
+  return parsed.toISOString().slice(0, 10);
 };
 
 export default function NouveauDevisPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading, refetchProfile } = useProfile();
+  const { isPremium } = usePremium();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
+  const isEditMode = Boolean(editId);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingDevis, setLoadingDevis] = useState(false);
+  const [savingProductId, setSavingProductId] = useState<string | null>(null);
 
   const [clientId, setClientId] = useState('');
   const [numero, setNumero] = useState('');
@@ -49,16 +74,24 @@ export default function NouveauDevisPage() {
     {
       id: crypto.randomUUID(),
       designation: '',
+      reference: '',
+      unite: '',
       quantite: 1,
       prix_unitaire_ht: 0,
       taux_tva: 20,
+      marge_pourcentage: 0,
+      produit_id: null,
     }
   ]);
   const tvaOptions = [0, 5.5, 10, 20];
   const defaultTvaRate = typeof profile?.taux_tva === 'number'
     ? profile.taux_tva
     : (profile?.tva_applicable === false ? 0 : 20);
+  const defaultMarge = typeof profile?.marge_defaut === 'number'
+    ? profile.marge_defaut
+    : 0;
   const tvaNonApplicable = defaultTvaRate === 0;
+  const unitOptions = ['unite', 'h', 'jour', 'm2', 'm3', 'ml', 'kg', 'lot'];
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -75,10 +108,12 @@ export default function NouveauDevisPage() {
     if (!profile) return;
     setLignes((current) =>
       current.map((ligne) =>
-        ligne.designation ? ligne : { ...ligne, taux_tva: defaultTvaRate }
+        ligne.designation
+          ? ligne
+          : { ...ligne, taux_tva: defaultTvaRate, marge_pourcentage: defaultMarge }
       )
     );
-  }, [profile, defaultTvaRate]);
+  }, [profile, defaultTvaRate, defaultMarge]);
 
   const fetchClients = useCallback(async () => {
     if (!user) return;
@@ -117,6 +152,107 @@ export default function NouveauDevisPage() {
     }
   }, [user]);
 
+  const loadDevisForEdit = useCallback(async (devisId: string) => {
+    if (!user) return;
+
+    try {
+      setLoadingDevis(true);
+
+      const { data: devisData, error: devisError } = await supabase
+        .from('devis')
+        .select('*')
+        .eq('id', devisId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (devisError) throw devisError;
+      if (!devisData) {
+        toast.error('Devis introuvable');
+        router.push('/devis');
+        return;
+      }
+
+      const { data: lignesData, error: lignesError } = await supabase
+        .from('lignes_devis')
+        .select('*')
+        .eq('devis_id', devisId)
+        .order('ordre');
+
+      if (lignesError) throw lignesError;
+
+      setClientId(devisData.client_id ?? '');
+      setNumero(devisData.numero ?? '');
+      setDateValidite(formatDateValue(devisData.date_validite));
+      setNotes(devisData.notes ?? '');
+
+      const produitIds = (lignesData || [])
+        .map((ligne) => ligne.produit_id)
+        .filter((id): id is string => Boolean(id));
+      const stockMap = new Map<string, { stock_actuel: number | null; stock_minimum: number | null; gestion_stock: boolean | null }>();
+
+      if (produitIds.length) {
+        const { data: produitsData, error: produitsError } = await supabase
+          .from('produits')
+          .select('id, stock_actuel, stock_minimum, gestion_stock')
+          .in('id', produitIds);
+
+        if (produitsError) throw produitsError;
+
+        (produitsData || []).forEach((produit) => {
+          stockMap.set(produit.id, {
+            stock_actuel: produit.stock_actuel !== null ? Number(produit.stock_actuel) : null,
+            stock_minimum: produit.stock_minimum !== null ? Number(produit.stock_minimum) : null,
+            gestion_stock: produit.gestion_stock ?? false,
+          });
+        });
+      }
+
+      const mappedLignes = (lignesData || []).map((ligne) => {
+        const stockInfo = ligne.produit_id ? stockMap.get(ligne.produit_id) : null;
+        return {
+          id: ligne.id,
+          designation: ligne.designation ?? '',
+          reference: ligne.reference ?? '',
+          unite: ligne.unite ?? '',
+          quantite: Number(ligne.quantite ?? 0),
+          prix_unitaire_ht: Number(ligne.prix_unitaire_ht ?? 0),
+          taux_tva: Number(ligne.taux_tva ?? defaultTvaRate),
+          marge_pourcentage: Number(ligne.marge_pourcentage ?? defaultMarge),
+          fournisseur_id: ligne.fournisseur_id ?? undefined,
+          produit_id: ligne.produit_id ?? null,
+          stock_actuel: stockInfo?.stock_actuel ?? null,
+          stock_minimum: stockInfo?.stock_minimum ?? null,
+          gestion_stock: stockInfo?.gestion_stock ?? null,
+        };
+      });
+
+      setLignes(
+        mappedLignes.length
+          ? mappedLignes
+          : [
+              {
+                id: crypto.randomUUID(),
+                designation: '',
+                reference: '',
+                unite: '',
+                quantite: 1,
+                prix_unitaire_ht: 0,
+                taux_tva: defaultTvaRate,
+                marge_pourcentage: defaultMarge,
+                produit_id: null,
+              },
+            ]
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors du chargement du devis';
+      toast.error(message);
+      router.push('/devis');
+    } finally {
+      setLoadingDevis(false);
+    }
+  }, [user, router, defaultTvaRate, defaultMarge]);
+
   useEffect(() => {
     if (user && profile !== null) {
       if (!profile.profil_complete) {
@@ -125,9 +261,13 @@ export default function NouveauDevisPage() {
         return;
       }
       fetchClients();
-      generateNumero();
+      if (editId) {
+        loadDevisForEdit(editId);
+      } else {
+        generateNumero();
+      }
     }
-  }, [user, profile, fetchClients, generateNumero, router]);
+  }, [user, profile, fetchClients, generateNumero, loadDevisForEdit, router, editId]);
 
   const addLigne = () => {
     setLignes([
@@ -135,9 +275,13 @@ export default function NouveauDevisPage() {
       {
         id: crypto.randomUUID(),
         designation: '',
+        reference: '',
+        unite: '',
         quantite: 1,
         prix_unitaire_ht: 0,
         taux_tva: defaultTvaRate,
+        marge_pourcentage: defaultMarge,
+        produit_id: null,
       }
     ]);
   };
@@ -169,18 +313,159 @@ export default function NouveauDevisPage() {
     const tauxTva = product?.taux_tva_defaut !== null
       ? Number(product.taux_tva_defaut)
       : defaultTvaRate;
+    const margeDefaut = product?.marge_defaut !== null
+      ? Number(product.marge_defaut)
+      : defaultMarge;
 
     setLignes(lignes.map(l =>
       l.id === id ? {
         ...l,
         designation: product.designation,
+        reference: product.reference || '',
+        unite: product.unite || '',
         prix_unitaire_ht: Number.isFinite(prixUnitaire) ? prixUnitaire : 0,
         taux_tva: Number.isFinite(tauxTva) ? tauxTva : defaultTvaRate,
+        marge_pourcentage: Number.isFinite(margeDefaut) ? margeDefaut : defaultMarge,
         fournisseur_id: product.fournisseur_defaut_id || undefined,
+        produit_id: product.id,
+        stock_actuel: product.stock_actuel ?? null,
+        stock_minimum: product.stock_minimum ?? null,
+        gestion_stock: product.gestion_stock ?? null,
         showProductSearch: false,
       } : l
     ));
     toast.success('Produit ajouté');
+  };
+
+
+  const getStockBadge = (ligne: LigneDevis) => {
+    if (!ligne.produit_id) {
+      return { label: '-', className: 'bg-gray-100 text-gray-700' };
+    }
+    if (!ligne.gestion_stock) {
+      return { label: 'Sur commande', className: 'bg-gray-100 text-gray-700' };
+    }
+    const stock = Number(ligne.stock_actuel ?? 0);
+    const minimum = Number(ligne.stock_minimum ?? 0);
+
+    if (stock <= 0) {
+      return { label: 'Rupture', className: 'bg-red-100 text-red-700' };
+    }
+    if (minimum > 0 && stock <= minimum) {
+      return { label: 'Faible', className: 'bg-yellow-100 text-yellow-700' };
+    }
+    return { label: 'En stock', className: 'bg-green-100 text-green-700' };
+  };
+
+  const handleSaveProduct = async (ligne: LigneDevis) => {
+    if (!user) return;
+    const designation = ligne.designation.trim();
+    if (!designation) {
+      toast.error('La designation est requise');
+      return;
+    }
+
+    if (savingProductId === ligne.id) return;
+    setSavingProductId(ligne.id);
+
+    try {
+      const reference = ligne.reference.trim();
+      const unite = ligne.unite.trim();
+      const margeValue = Number.isFinite(ligne.marge_pourcentage)
+        ? ligne.marge_pourcentage
+        : defaultMarge;
+
+      const payload = {
+        designation,
+        reference: reference || null,
+        categorie: null,
+        unite: unite || null,
+        prix_ht_defaut: ligne.prix_unitaire_ht,
+        taux_tva_defaut: ligne.taux_tva,
+        marge_defaut: margeValue,
+        fournisseur_defaut_id: ligne.fournisseur_id || null,
+        actif: true,
+      };
+
+      let existingProduct = null;
+
+      if (reference) {
+        const { data, error } = await supabase
+          .from('produits')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('reference', reference)
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        existingProduct = data ?? null;
+      }
+
+      if (!existingProduct) {
+        const { data, error } = await supabase
+          .from('produits')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('designation', designation)
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        existingProduct = data ?? null;
+      }
+
+      if (existingProduct) {
+        const confirmUpdate = globalThis.confirm?.(
+          'Un produit existe deja avec cette reference ou designation. Le mettre a jour ?'
+        );
+        if (!confirmUpdate) {
+          return;
+        }
+
+        const { error } = await supabase
+          .from('produits')
+          .update(payload)
+          .eq('id', existingProduct.id);
+
+        if (error) throw error;
+
+        setLignes((current) =>
+          current.map((item) =>
+            item.id === ligne.id ? { ...item, produit_id: existingProduct.id } : item
+          )
+        );
+        toast.success('Produit mis a jour');
+        return;
+      }
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('produits')
+        .insert([
+          {
+            ...payload,
+            user_id: user.id,
+            type: 'custom',
+          },
+        ])
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+
+      setLignes((current) =>
+        current.map((item) =>
+          item.id === ligne.id ? { ...item, produit_id: inserted.id } : item
+        )
+      );
+      toast.success('Produit enregistre');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de l enregistrement du produit';
+      toast.error(message);
+    } finally {
+      setSavingProductId(null);
+    }
   };
 
   const calculateTotals = () => {
@@ -220,6 +505,55 @@ export default function NouveauDevisPage() {
     try {
       const totals = calculateTotals();
 
+      if (isEditMode && editId) {
+        const { error: devisError } = await supabase
+          .from('devis')
+          .update({
+            numero,
+            client_id: clientId,
+            date_validite: dateValidite || null,
+            total_ht: totals.totalHT,
+            total_tva: totals.totalTVA,
+            total_ttc: totals.totalTTC,
+            notes: notes || null,
+          })
+          .eq('id', editId)
+          .eq('user_id', user!.id);
+
+        if (devisError) throw devisError;
+
+        const { error: deleteError } = await supabase
+          .from('lignes_devis')
+          .delete()
+          .eq('devis_id', editId);
+
+        if (deleteError) throw deleteError;
+
+        const lignesData = lignes.map((ligne, index) => ({
+          devis_id: editId,
+          designation: ligne.designation,
+          reference: ligne.reference || null,
+          unite: ligne.unite || null,
+          quantite: ligne.quantite,
+          prix_unitaire_ht: ligne.prix_unitaire_ht,
+          taux_tva: ligne.taux_tva,
+          marge_pourcentage: ligne.marge_pourcentage ?? null,
+          produit_id: ligne.produit_id || null,
+          fournisseur_id: ligne.fournisseur_id || null,
+          ordre: index,
+        }));
+
+        const { error: lignesError } = await supabase
+          .from('lignes_devis')
+          .insert(lignesData);
+
+        if (lignesError) throw lignesError;
+
+        toast.success('Devis mis a jour avec succes');
+        router.push('/devis');
+        return;
+      }
+
       const { data: devisData, error: devisError } = await supabase
         .from('devis')
         .insert({
@@ -241,9 +575,13 @@ export default function NouveauDevisPage() {
       const lignesData = lignes.map((ligne, index) => ({
         devis_id: devisData.id,
         designation: ligne.designation,
+        reference: ligne.reference || null,
+        unite: ligne.unite || null,
         quantite: ligne.quantite,
         prix_unitaire_ht: ligne.prix_unitaire_ht,
         taux_tva: ligne.taux_tva,
+        marge_pourcentage: ligne.marge_pourcentage ?? null,
+        produit_id: ligne.produit_id || null,
         fournisseur_id: ligne.fournisseur_id || null,
         ordre: index,
       }));
@@ -267,7 +605,7 @@ export default function NouveauDevisPage() {
 
   const totals = calculateTotals();
 
-  if (authLoading || profileLoading) {
+  if (authLoading || profileLoading || loadingDevis) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg">Chargement...</div>
@@ -287,7 +625,9 @@ export default function NouveauDevisPage() {
     <DashboardLayout>
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Nouveau Devis</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isEditMode ? 'Modifier le devis' : 'Nouveau Devis'}
+          </h1>
           <button
             type="button"
             onClick={() => router.push('/devis')}
@@ -381,60 +721,68 @@ export default function NouveauDevisPage() {
             <div className="space-y-3">
               {lignes.map((ligne, index) => (
                 <div key={ligne.id} className="border border-gray-200 rounded-md p-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <span className="text-sm font-medium text-gray-700">Ligne {index + 1}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleProductSearch(ligne.id)}
-                      className="text-xs text-orange-600 hover:text-orange-700 font-medium"
-                    >
-                      {ligne.showProductSearch ? 'Masquer la recherche' : 'Choisir depuis la bibliothèque'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleProductSearch(ligne.id)}
+                        className="text-xs text-orange-600 hover:text-orange-700 font-medium"
+                      >
+                        {ligne.showProductSearch ? 'Masquer la recherche' : 'Choisir depuis la bibliotheque'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveProduct(ligne)}
+                        disabled={savingProductId === ligne.id}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {savingProductId === ligne.id ? 'Enregistrement...' : (ligne.produit_id ? 'Mettre a jour' : 'Enregistrer')}
+                      </button>
+                    </div>
                   </div>
+
 
                   {ligne.showProductSearch && (
                     <div className="mb-3">
                       <ProductSearch
                         onSelectProduct={(product) => handleSelectProduct(ligne.id, product)}
-                        placeholder="Rechercher dans votre bibliothèque de produits..."
+                        placeholder="Rechercher dans votre bibliotheque de produits..."
                       />
                     </div>
                   )}
-
                   <div className="flex items-start gap-3">
                     <div className="flex-1 grid grid-cols-12 gap-3">
-                      <div className="col-span-5">
+                      <div className="col-span-12 md:col-span-4">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Désignation
+                          Designation
                         </label>
                         <input
                           type="text"
                           value={ligne.designation}
                           onChange={(e) => updateLigne(ligne.id, 'designation', e.target.value)}
                           required
-                          title="Désignation"
+                          title="Designation"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
                           placeholder="Description du produit/service"
                         />
                       </div>
 
-                      <div className="col-span-2">
+                      <div className="col-span-6 md:col-span-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Quantité
+                          Reference
                         </label>
                         <input
-                          type="number"
-                          value={ligne.quantite}
-                          onChange={(e) => updateLigne(ligne.id, 'quantite', parseFloat(e.target.value) || 0)}
-                          min="0"
-                          step="0.01"
-                          required
-                          title="Quantité"
+                          type="text"
+                          value={ligne.reference}
+                          onChange={(e) => updateLigne(ligne.id, 'reference', e.target.value)}
+                          title="Reference"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          placeholder="REF-001"
                         />
                       </div>
 
-                      <div className="col-span-2">
+                      <div className="col-span-6 md:col-span-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Prix HT
                         </label>
@@ -450,7 +798,22 @@ export default function NouveauDevisPage() {
                         />
                       </div>
 
-                      <div className="col-span-2">
+                      <div className="col-span-4 md:col-span-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Marge %
+                        </label>
+                        <input
+                          type="number"
+                          value={ligne.marge_pourcentage}
+                          onChange={(e) => updateLigne(ligne.id, 'marge_pourcentage', parseFloat(e.target.value) || 0)}
+                          min="0"
+                          step="0.01"
+                          title="Marge"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        />
+                      </div>
+
+                      <div className="col-span-4 md:col-span-1">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           TVA %
                         </label>
@@ -469,11 +832,57 @@ export default function NouveauDevisPage() {
                         </select>
                       </div>
 
-                      <div className="col-span-1 flex items-end">
-                        <div className="text-sm font-medium text-gray-900">
-                          {(ligne.quantite * ligne.prix_unitaire_ht).toFixed(2)} €
+                      <div className="col-span-4 md:col-span-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Unite
+                        </label>
+                        <input
+                          type="text"
+                          list="unit-options"
+                          value={ligne.unite}
+                          onChange={(e) => updateLigne(ligne.id, 'unite', e.target.value)}
+                          title="Unite"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          placeholder="unite"
+                        />
+                      </div>
+
+                      <div className="col-span-4 md:col-span-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Quantite
+                        </label>
+                        <input
+                          type="number"
+                          value={ligne.quantite}
+                          onChange={(e) => updateLigne(ligne.id, 'quantite', parseFloat(e.target.value) || 0)}
+                          min="0"
+                          step="0.01"
+                          required
+                          title="Quantite"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                        />
+                      </div>
+
+                      <div className="col-span-4 md:col-span-1">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Total HT
+                        </label>
+                        <div className="px-3 py-2 text-sm font-medium text-gray-900 rounded-md bg-gray-50 border border-gray-200">
+                          {(ligne.quantite * ligne.prix_unitaire_ht).toFixed(2)} EUR
                         </div>
                       </div>
+
+                      {isPremium && (
+                        <div className="col-span-4 md:col-span-1">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">
+                            Stock
+                          </label>
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStockBadge(ligne).className}`}>
+                            {getStockBadge(ligne).label}
+                          </span>
+                        </div>
+                      )}
+
                     </div>
 
                     <button
@@ -489,6 +898,11 @@ export default function NouveauDevisPage() {
                   </div>
                 </div>
               ))}
+              <datalist id="unit-options">
+                {unitOptions.map((unit) => (
+                  <option key={unit} value={unit} />
+                ))}
+              </datalist>
             </div>
 
             <div className="mt-6 pt-6 border-t border-gray-200">
@@ -496,15 +910,15 @@ export default function NouveauDevisPage() {
                 <div className="w-64 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Total HT:</span>
-                    <span className="font-medium text-gray-900">{totals.totalHT.toFixed(2)} €</span>
+                    <span className="font-medium text-gray-900">{totals.totalHT.toFixed(2)} EUR</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Total TVA:</span>
-                    <span className="font-medium text-gray-900">{totals.totalTVA.toFixed(2)} €</span>
+                    <span className="font-medium text-gray-900">{totals.totalTVA.toFixed(2)} EUR</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-2">
                     <span className="text-gray-900">Total TTC:</span>
-                    <span className="text-blue-600">{totals.totalTTC.toFixed(2)} €</span>
+                    <span className="text-blue-600">{totals.totalTTC.toFixed(2)} EUR</span>
                   </div>
                   {tvaNonApplicable && (
                     <p className="text-xs text-gray-500 pt-2">
@@ -526,10 +940,10 @@ export default function NouveauDevisPage() {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || loadingDevis}
               className="px-6 py-3 bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-sm hover:shadow-md transition-all"
             >
-              {loading ? 'Création...' : 'Créer le devis'}
+              {loading ? 'Traitement...' : (isEditMode ? 'Mettre a jour' : 'Creer le devis')}
             </button>
           </div>
         </form>

@@ -18,6 +18,7 @@ type Produit = {
   code_standard: string | null;
   prix_ht_defaut: number | null;
   taux_tva_defaut: number | null;
+  marge_defaut: number | null;
   fournisseur_defaut_id: string | null;
   actif: boolean | null;
   created_at: string;
@@ -46,6 +47,7 @@ export default function ProduitsPage() {
     unite: 'unité',
     prix_ht_defaut: 0,
     taux_tva_defaut: 20,
+    marge_defaut: 0,
     fournisseur_defaut_id: '',
     actif: true,
   });
@@ -118,6 +120,7 @@ export default function ProduitsPage() {
         taux_tva_defaut: typeof produit.taux_tva_defaut === 'number'
           ? produit.taux_tva_defaut
           : 20,
+        marge_defaut: typeof produit.marge_defaut === 'number' ? produit.marge_defaut : 0,
         fournisseur_defaut_id: produit.fournisseur_defaut_id || '',
         actif: produit.actif !== false,
       });
@@ -130,6 +133,7 @@ export default function ProduitsPage() {
         unite: 'unité',
         prix_ht_defaut: 0,
         taux_tva_defaut: 20,
+        marge_defaut: 0,
         fournisseur_defaut_id: '',
         actif: true,
       });
@@ -273,6 +277,9 @@ export default function ProduitsPage() {
                   Prix HT
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Marge %
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   TVA
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -289,7 +296,7 @@ export default function ProduitsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {produitsStandards.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     Aucun produit standard
                   </td>
                 </tr>
@@ -308,6 +315,9 @@ export default function ProduitsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {produit.prix_ht_defaut?.toFixed(2) || '0.00'} €
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {(produit.marge_defaut ?? 0).toFixed(2)}%
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {(produit.taux_tva_defaut ?? 20)}%
@@ -372,6 +382,9 @@ export default function ProduitsPage() {
                   Prix HT
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Marge %
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   TVA
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -388,7 +401,7 @@ export default function ProduitsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {produitsCustom.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                     Aucun produit personnalisé. Cliquez sur &quot;Ajouter un produit&quot; pour commencer.
                   </td>
                 </tr>
@@ -403,6 +416,9 @@ export default function ProduitsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {produit.prix_ht_defaut?.toFixed(2) || '0.00'} €
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {(produit.marge_defaut ?? 0).toFixed(2)}%
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {(produit.taux_tva_defaut ?? 20)}%
@@ -515,6 +531,22 @@ export default function ProduitsPage() {
                     value={formData.prix_ht_defaut}
                     onChange={(e) => setFormData({ ...formData, prix_ht_defaut: parseFloat(e.target.value) || 0 })}
                     required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+
+
+                <div>
+                  <label htmlFor="produit_marge_defaut" className="block text-sm font-medium text-gray-700 mb-1">
+                    Marge par defaut (%)
+                  </label>
+                  <input
+                    id="produit_marge_defaut"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.marge_defaut}
+                    onChange={(e) => setFormData({ ...formData, marge_defaut: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
                 </div>

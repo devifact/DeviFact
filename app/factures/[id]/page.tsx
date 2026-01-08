@@ -104,7 +104,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     }
   }, [authLoading, fetchFactureDetails, router, user]);
 
-  const handleDownloadPDF = () => {
+  const handlePrint = () => {
     if (!facture) return;
 
     try {
@@ -259,10 +259,10 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={handleDownloadPDF}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+              onClick={handlePrint}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Imprimer / Exporter en PDF
+              Imprimer
             </button>
             {facture.statut !== 'payee' && facture.statut !== 'annulee' && (
               <>

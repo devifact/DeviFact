@@ -34,6 +34,14 @@ html.theme-dark {
   color-scheme: dark;
 }
 
+.theme-dark img.logo-light {
+  display: none;
+}
+
+.theme-light img.logo-dark {
+  display: none;
+}
+
 body {
   color: var(--app-text);
   background: linear-gradient(

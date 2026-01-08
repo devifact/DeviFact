@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { supabase } from '@/lib/supabase.ts';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
 
@@ -19,6 +19,7 @@ export default function DevisDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const devisId = params?.id as string;
 
   const [devis, setDevis] = useState<Devis | null>(null);
@@ -30,6 +31,8 @@ export default function DevisDetailPage() {
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [factureLoading, setFactureLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [pendingPrintHandled, setPendingPrintHandled] = useState(false);
+  const [hasInvoice, setHasInvoice] = useState(false);
 
   const fetchDevisDetails = useCallback(async () => {
     if (!user) return;
@@ -37,7 +40,7 @@ export default function DevisDetailPage() {
     try {
       setLoading(true);
 
-      const [devisResult, profileResult] = await Promise.all([
+      const [devisResult, profileResult, factureResult] = await Promise.all([
         supabase
           .from('devis')
           .select('*')
@@ -49,10 +52,18 @@ export default function DevisDetailPage() {
           .select('*')
           .eq('id', user.id)
           .maybeSingle(),
+        supabase
+          .from('factures')
+          .select('id')
+          .eq('devis_id', devisId)
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       if (devisResult.error) throw devisResult.error;
       if (profileResult.error) throw profileResult.error;
+      if (factureResult.error) throw factureResult.error;
 
       if (!devisResult.data) {
         toast.error('Devis introuvable');
@@ -62,6 +73,7 @@ export default function DevisDetailPage() {
 
       setDevis(devisResult.data);
       setProfile(profileResult.data);
+      setHasInvoice(Boolean(factureResult.data));
 
       const [clientResult, lignesResult] = await Promise.all([
         supabase
@@ -100,6 +112,20 @@ export default function DevisDetailPage() {
       fetchDevisDetails();
     }
   }, [user, authLoading, devisId, router, fetchDevisDetails]);
+
+  useEffect(() => {
+    if (!devis || pendingPrintHandled) {
+      return;
+    }
+
+    if (searchParams.get('print') === '1') {
+      setPendingPrintHandled(true);
+      requestAnimationFrame(() => {
+        window.print();
+      });
+      router.replace(`/devis/${devis.id}`);
+    }
+  }, [devis, pendingPrintHandled, router, searchParams]);
 
   const creerFactureDepuisDevis = async (devisId: string) => {
     const { data: devisData, error: devisError } = await supabase
@@ -172,7 +198,7 @@ export default function DevisDetailPage() {
     return facture;
   };
 
-  const handleDownloadPdf = () => {
+  const handlePrint = () => {
     if (!devis) return;
 
     try {
@@ -186,6 +212,11 @@ export default function DevisDetailPage() {
     } finally {
       setGeneratingPdf(false);
     }
+  };
+
+  const handleEditDevis = () => {
+    if (!devis || hasInvoice) return;
+    router.push(`/devis/nouveau?edit=${encodeURIComponent(devis.id)}`);
   };
 
   const handleFacturer = async () => {
@@ -328,30 +359,40 @@ export default function DevisDetailPage() {
           </div>
           <div className="flex items-center gap-4 print-hide">
             {getStatusBadge(devis.statut)}
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={generatingPdf}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {generatingPdf ? 'Impression...' : 'Imprimer / Exporter en PDF'}
-            </button>
-            <button
-              type="button"
-              onClick={handleFacturer}
-              disabled={factureLoading || devis.statut !== 'accepte'}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Créer une facture
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={deleteLoading}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Supprimer
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleFacturer}
+                disabled={factureLoading || devis.statut !== 'accepte'}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Facturer
+              </button>
+              <button
+                type="button"
+                onClick={handleEditDevis}
+                disabled={hasInvoice}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Modifier
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteLoading}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Supprimer
+              </button>
+              <button
+                type="button"
+                onClick={handlePrint}
+                disabled={generatingPdf}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {generatingPdf ? 'Impression...' : 'Imprimer'}
+              </button>
+            </div>
           </div>
         </div>
 

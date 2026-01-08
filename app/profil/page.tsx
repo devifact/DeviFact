@@ -40,6 +40,7 @@ export default function ProfilPage() {
     siret: '',
     tva_applicable: true,
     taux_tva: 20,
+    marge_defaut: 0,
     email_contact: '',
     telephone: '',
     logo_url: '',
@@ -70,6 +71,7 @@ export default function ProfilPage() {
         siret: sanitizeDigits(profile.siret || '', 14),
         tva_applicable: defaultTvaRate !== 0,
         taux_tva: defaultTvaRate,
+        marge_defaut: typeof profile.marge_defaut === 'number' ? profile.marge_defaut : 0,
         email_contact: profile.email_contact || '',
         telephone: profile.telephone || '',
         logo_url: profile.logo_url || '',
@@ -105,6 +107,9 @@ export default function ProfilPage() {
       const normalizedTvaRate = Number.isFinite(formData.taux_tva)
         ? formData.taux_tva
         : 20;
+      const normalizedMarge = Number.isFinite(formData.marge_defaut)
+        ? formData.marge_defaut
+        : 0;
       const tvaApplicable = normalizedTvaRate !== 0;
       const siretValue = sanitizeDigits(formData.siret, 14);
       const siretValid = siretValue.length === 14 && isValidSiret(siretValue);
@@ -135,6 +140,7 @@ export default function ProfilPage() {
         ...formData,
         telephone: normalizedPhone,
         taux_tva: normalizedTvaRate,
+        marge_defaut: normalizedMarge,
         tva_applicable: tvaApplicable,
         profil_complete: isComplete,
       });
@@ -645,6 +651,27 @@ export default function ProfilPage() {
                   TVA non applicable, art. 293B du CGI
                 </p>
               )}
+            </div>
+
+            <div>
+              <label htmlFor="marge_defaut" className="block text-sm font-medium text-gray-700 mb-1">
+                Marge par defaut (%)
+              </label>
+              <input
+                id="marge_defaut"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={formData.marge_defaut}
+                onChange={(e) =>
+                  setFormData({ ...formData, marge_defaut: parseFloat(e.target.value) || 0 })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Utilisee pour pre-remplir la marge des lignes de devis.
+              </p>
             </div>
 
             <div className="md:col-span-2">

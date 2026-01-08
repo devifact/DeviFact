@@ -15,13 +15,23 @@ export function Logo({ size = 'small', className = '' }: LogoProps) {
   const { width, height } = sizes[size];
 
   return (
-    <Image
-      src="/logo.svg"
-      alt="DevisFact"
-      width={width}
-      height={height}
-      className={className}
-      priority
-    />
+    <span className={`inline-flex items-center ${className}`}>
+      <Image
+        src="/logo.svg"
+        alt="DevisFact"
+        width={width}
+        height={height}
+        className="logo-light"
+        priority
+      />
+      <Image
+        src="/logo-dark.svg"
+        alt="DevisFact"
+        width={width}
+        height={height}
+        className="logo-dark"
+        priority
+      />
+    </span>
   );
 }

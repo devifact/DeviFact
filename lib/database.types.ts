@@ -23,6 +23,7 @@ export interface Database {
           siret: string | null
           tva_applicable: boolean | null
           taux_tva: number | null
+          marge_defaut: number | null
           email_contact: string | null
           telephone: string | null
           telephone_verified: boolean | null
@@ -52,6 +53,7 @@ export interface Database {
           siret?: string | null
           tva_applicable?: boolean | null
           taux_tva?: number | null
+          marge_defaut?: number | null
           email_contact?: string | null
           telephone?: string | null
           telephone_verified?: boolean | null
@@ -81,6 +83,7 @@ export interface Database {
           siret?: string | null
           tva_applicable?: boolean | null
           taux_tva?: number | null
+          marge_defaut?: number | null
           email_contact?: string | null
           telephone?: string | null
           telephone_verified?: boolean | null
@@ -162,6 +165,16 @@ export interface Database {
           reference: string | null
           categorie: string | null
           unite: string | null
+          type: 'standard' | 'custom' | null
+          actif: boolean | null
+          prix_ht_defaut: number | null
+          taux_tva_defaut: number | null
+          marge_defaut: number | null
+          fournisseur_defaut_id: string | null
+          code_standard: string | null
+          stock_actuel: number | null
+          stock_minimum: number | null
+          gestion_stock: boolean | null
           created_at: string
           updated_at: string
         }
@@ -172,6 +185,16 @@ export interface Database {
           reference?: string | null
           categorie?: string | null
           unite?: string | null
+          type?: 'standard' | 'custom' | null
+          actif?: boolean | null
+          prix_ht_defaut?: number | null
+          taux_tva_defaut?: number | null
+          marge_defaut?: number | null
+          fournisseur_defaut_id?: string | null
+          code_standard?: string | null
+          stock_actuel?: number | null
+          stock_minimum?: number | null
+          gestion_stock?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -182,6 +205,16 @@ export interface Database {
           reference?: string | null
           categorie?: string | null
           unite?: string | null
+          type?: 'standard' | 'custom' | null
+          actif?: boolean | null
+          prix_ht_defaut?: number | null
+          taux_tva_defaut?: number | null
+          marge_defaut?: number | null
+          fournisseur_defaut_id?: string | null
+          code_standard?: string | null
+          stock_actuel?: number | null
+          stock_minimum?: number | null
+          gestion_stock?: boolean | null
           created_at?: string
           updated_at?: string
         }
@@ -304,11 +337,15 @@ export interface Database {
           id: string
           devis_id: string
           designation: string
+          reference: string | null
+          unite: string | null
           quantite: number
           prix_unitaire_ht: number
           taux_tva: number
           total_ligne_ht: number
           fournisseur_id: string | null
+          marge_pourcentage: number | null
+          produit_id: string | null
           ordre: number
           created_at: string
         }
@@ -316,10 +353,14 @@ export interface Database {
           id?: string
           devis_id: string
           designation: string
+          reference?: string | null
+          unite?: string | null
           quantite: number
           prix_unitaire_ht: number
           taux_tva: number
           fournisseur_id?: string | null
+          marge_pourcentage?: number | null
+          produit_id?: string | null
           ordre?: number
           created_at?: string
         }
@@ -327,10 +368,14 @@ export interface Database {
           id?: string
           devis_id?: string
           designation?: string
+          reference?: string | null
+          unite?: string | null
           quantite?: number
           prix_unitaire_ht?: number
           taux_tva?: number
           fournisseur_id?: string | null
+          marge_pourcentage?: number | null
+          produit_id?: string | null
           ordre?: number
           created_at?: string
         }
