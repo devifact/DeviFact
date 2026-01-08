@@ -7,6 +7,7 @@ import { useSubscription } from '@/lib/hooks/use-subscription.ts';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
 import { usePremium } from '@/lib/hooks/use-premium.ts';
 import { Logo } from './logo.tsx';
+import { ThemeToggle } from './theme-toggle.tsx';
 
 const navItems = [
   { name: 'Tableau de bord', href: '/dashboard', icon: '📊' },
@@ -78,6 +79,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
               )}
+
+              <ThemeToggle />
 
               <button
                 onClick={handleSignOut}
