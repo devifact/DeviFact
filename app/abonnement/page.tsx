@@ -422,7 +422,7 @@ export default function AbonnementPage() {
                 type="button"
                 onClick={() => handleSubscribePremium('mensuel')}
                 disabled={premiumButtonsDisabled}
-                className="w-full mt-auto bg-slate-900 text-white py-3 px-4 rounded-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
+                className="w-full mt-auto bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors"
               >
                 {subscribingPremium ? 'Chargement...' : premiumActive ? 'Option active' : "Activer l'option premium"}
               </button>
