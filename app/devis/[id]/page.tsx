@@ -358,15 +358,24 @@ export default function DevisDetailPage() {
         <div className="bg-white rounded-lg shadow-sm p-8 print-area">
           <div className="border-b-2 border-blue-600 pb-6 mb-6">
             <div className="flex justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
-                  {profile.raison_sociale}
-                </h2>
-                <p className="text-gray-600">{profile.adresse}</p>
-                <p className="text-gray-600">
-                  {profile.code_postal} {profile.ville}
-                </p>
-                <p className="text-gray-600">{profile.pays || 'France'}</p>
+              <div className="flex items-start gap-4">
+                {profile.logo_url && (
+                  <img
+                    src={profile.logo_url}
+                    alt="Logo de l'entreprise"
+                    className="h-16 w-16 rounded border border-gray-200 bg-white p-1 object-contain"
+                  />
+                )}
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">
+                    {profile.raison_sociale}
+                  </h2>
+                  <p className="text-gray-600">{profile.adresse}</p>
+                  <p className="text-gray-600">
+                    {profile.code_postal} {profile.ville}
+                  </p>
+                  <p className="text-gray-600">{profile.pays || 'France'}</p>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-gray-600">

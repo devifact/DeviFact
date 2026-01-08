@@ -290,7 +290,15 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
             <div className="flex-1">
               <h2 className="text-lg font-semibold text-gray-900 mb-3">Émetteur</h2>
               {facture.profile && (
-                <div className="space-y-1">
+                <div className="flex items-start gap-4">
+                  {facture.profile.logo_url && (
+                    <img
+                      src={facture.profile.logo_url}
+                      alt="Logo de l'entreprise"
+                      className="h-16 w-16 rounded border border-gray-200 bg-white p-1 object-contain"
+                    />
+                  )}
+                  <div className="space-y-1">
                   {facture.profile.raison_sociale && (
                     <p className="text-gray-900 font-medium">{facture.profile.raison_sociale}</p>
                   )}
@@ -312,6 +320,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
                   {facture.profile.telephone && (
                     <p className="text-gray-600 text-sm">{facture.profile.telephone}</p>
                   )}
+                  </div>
                 </div>
               )}
             </div>
