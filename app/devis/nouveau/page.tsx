@@ -92,6 +92,9 @@ export default function NouveauDevisPage() {
     : 0;
   const tvaNonApplicable = defaultTvaRate === 0;
   const unitOptions = ['unite', 'h', 'jour', 'm2', 'm3', 'ml', 'kg', 'lot'];
+  const lineGridClass = isPremium
+    ? 'grid gap-3 min-w-[1180px] grid-cols-[minmax(220px,2.2fr)_minmax(120px,1fr)_minmax(110px,0.9fr)_minmax(90px,0.7fr)_minmax(80px,0.6fr)_minmax(90px,0.7fr)_minmax(90px,0.7fr)_minmax(110px,0.9fr)_minmax(90px,0.7fr)]'
+    : 'grid gap-3 min-w-[1080px] grid-cols-[minmax(240px,2.4fr)_minmax(130px,1fr)_minmax(120px,0.9fr)_minmax(90px,0.7fr)_minmax(80px,0.6fr)_minmax(90px,0.7fr)_minmax(90px,0.7fr)_minmax(120px,0.9fr)]';
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -370,6 +373,7 @@ export default function NouveauDevisPage() {
 
     try {
       const reference = ligne.reference.trim();
+      const referenceNormalized = reference ? reference.toUpperCase() : '';
       const unite = ligne.unite.trim();
       const margeValue = Number.isFinite(ligne.marge_pourcentage)
         ? ligne.marge_pourcentage
@@ -377,7 +381,7 @@ export default function NouveauDevisPage() {
 
       const payload = {
         designation,
-        reference: reference || null,
+        reference: referenceNormalized || null,
         categorie: null,
         unite: unite || null,
         prix_ht_defaut: ligne.prix_unitaire_ht,
@@ -385,16 +389,17 @@ export default function NouveauDevisPage() {
         marge_defaut: margeValue,
         fournisseur_defaut_id: ligne.fournisseur_id || null,
         actif: true,
+        gestion_stock: true,
       };
 
       let existingProduct = null;
 
-      if (reference) {
+      if (referenceNormalized) {
         const { data, error } = await supabase
           .from('produits')
-          .select('id')
+          .select('id, stock_actuel, stock_minimum, gestion_stock')
           .eq('user_id', user.id)
-          .eq('reference', reference)
+          .ilike('reference', referenceNormalized)
           .limit(1)
           .maybeSingle();
 
@@ -405,7 +410,7 @@ export default function NouveauDevisPage() {
       if (!existingProduct) {
         const { data, error } = await supabase
           .from('produits')
-          .select('id')
+          .select('id, stock_actuel, stock_minimum, gestion_stock')
           .eq('user_id', user.id)
           .ilike('designation', designation)
           .limit(1)
@@ -425,7 +430,12 @@ export default function NouveauDevisPage() {
 
         const { error } = await supabase
           .from('produits')
-          .update(payload)
+          .update({
+            ...payload,
+            stock_actuel: existingProduct.stock_actuel === null ? 0 : undefined,
+            stock_minimum: existingProduct.stock_minimum === null ? 1 : undefined,
+            gestion_stock: true,
+          })
           .eq('id', existingProduct.id);
 
         if (error) throw error;
@@ -446,12 +456,21 @@ export default function NouveauDevisPage() {
             ...payload,
             user_id: user.id,
             type: 'custom',
+            stock_actuel: 0,
+            stock_minimum: 1,
+            gestion_stock: true,
           },
         ])
         .select('id')
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        if (insertError.code === '23505') {
+          toast.error('Reference deja utilisee');
+          return;
+        }
+        throw insertError;
+      }
 
       setLignes((current) =>
         current.map((item) =>
@@ -752,9 +771,10 @@ export default function NouveauDevisPage() {
                     </div>
                   )}
                   <div className="flex items-start gap-3">
-                    <div className="flex-1 grid grid-cols-12 gap-3">
-                      <div className="col-span-12 md:col-span-4">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                    <div className="flex-1 overflow-x-auto">
+                      <div className={lineGridClass}>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           Designation
                         </label>
                         <input
@@ -763,13 +783,13 @@ export default function NouveauDevisPage() {
                           onChange={(e) => updateLigne(ligne.id, 'designation', e.target.value)}
                           required
                           title="Designation"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-[13px]"
                           placeholder="Description du produit/service"
                         />
-                      </div>
+                        </div>
 
-                      <div className="col-span-6 md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           Reference
                         </label>
                         <input
@@ -777,13 +797,13 @@ export default function NouveauDevisPage() {
                           value={ligne.reference}
                           onChange={(e) => updateLigne(ligne.id, 'reference', e.target.value)}
                           title="Reference"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-[13px]"
                           placeholder="REF-001"
                         />
-                      </div>
+                        </div>
 
-                      <div className="col-span-6 md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           Prix HT
                         </label>
                         <input
@@ -794,12 +814,12 @@ export default function NouveauDevisPage() {
                           step="0.01"
                           required
                           title="Prix HT"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-[13px]"
                         />
-                      </div>
+                        </div>
 
-                      <div className="col-span-4 md:col-span-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           Marge %
                         </label>
                         <input
@@ -809,12 +829,12 @@ export default function NouveauDevisPage() {
                           min="0"
                           step="0.01"
                           title="Marge"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-[13px]"
                         />
-                      </div>
+                        </div>
 
-                      <div className="col-span-4 md:col-span-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           TVA %
                         </label>
                         <select
@@ -822,7 +842,7 @@ export default function NouveauDevisPage() {
                           onChange={(e) => updateLigne(ligne.id, 'taux_tva', parseFloat(e.target.value))}
                           required
                           title="TVA %"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-[13px]"
                         >
                           {tvaOptions.map((rate) => (
                             <option key={rate} value={rate}>
@@ -830,10 +850,10 @@ export default function NouveauDevisPage() {
                             </option>
                           ))}
                         </select>
-                      </div>
+                        </div>
 
-                      <div className="col-span-4 md:col-span-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           Unite
                         </label>
                         <input
@@ -842,13 +862,13 @@ export default function NouveauDevisPage() {
                           value={ligne.unite}
                           onChange={(e) => updateLigne(ligne.id, 'unite', e.target.value)}
                           title="Unite"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-[13px]"
                           placeholder="unite"
                         />
-                      </div>
+                        </div>
 
-                      <div className="col-span-4 md:col-span-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           Quantite
                         </label>
                         <input
@@ -859,30 +879,30 @@ export default function NouveauDevisPage() {
                           step="0.01"
                           required
                           title="Quantite"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm"
+                          className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 text-[13px]"
                         />
-                      </div>
+                        </div>
 
-                      <div className="col-span-4 md:col-span-1">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
                           Total HT
                         </label>
-                        <div className="px-3 py-2 text-sm font-medium text-gray-900 rounded-md bg-gray-50 border border-gray-200">
+                        <div className="px-3 py-1.5 text-[13px] font-medium text-gray-900 rounded-md bg-gray-50 border border-gray-200 whitespace-nowrap">
                           {(ligne.quantite * ligne.prix_unitaire_ht).toFixed(2)} EUR
                         </div>
-                      </div>
-
-                      {isPremium && (
-                        <div className="col-span-4 md:col-span-1">
-                          <label className="block text-xs font-medium text-gray-700 mb-1">
-                            Stock
-                          </label>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStockBadge(ligne).className}`}>
-                            {getStockBadge(ligne).label}
-                          </span>
                         </div>
-                      )}
 
+                        {isPremium && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1 whitespace-nowrap">
+                              Stock
+                            </label>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStockBadge(ligne).className}`}>
+                              {getStockBadge(ligne).label}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <button

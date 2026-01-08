@@ -39,6 +39,10 @@ export default function ProduitsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduit, setEditingProduit] = useState<Produit | null>(null);
   const tvaOptions = [0, 5.5, 10, 20];
+  const normalizeReference = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed ? trimmed.toUpperCase() : '';
+  };
 
   const [formData, setFormData] = useState({
     designation: '',
@@ -150,18 +154,48 @@ export default function ProduitsPage() {
     e.preventDefault();
 
     try {
+      const referenceNormalized = normalizeReference(formData.reference);
+      const duplicateResult = referenceNormalized
+        ? await supabase
+            .from('produits')
+            .select('id, stock_actuel, stock_minimum, gestion_stock')
+            .eq('user_id', user!.id)
+            .ilike('reference', referenceNormalized)
+            .limit(1)
+            .maybeSingle()
+        : null;
+
+      if (duplicateResult?.error) throw duplicateResult.error;
+      const duplicateProduit = duplicateResult?.data ?? null;
+      if (duplicateProduit && (!editingProduit || duplicateProduit.id !== editingProduit.id)) {
+        toast.error('Reference deja utilisee');
+        return;
+      }
       const dataToSave = {
         ...formData,
+        reference: referenceNormalized || null,
         fournisseur_defaut_id: formData.fournisseur_defaut_id || null,
+        gestion_stock: true,
       };
 
       if (editingProduit) {
         const { error } = await supabase
           .from('produits')
-          .update(dataToSave)
+          .update({
+            ...dataToSave,
+            stock_actuel: duplicateProduit?.stock_actuel === null ? 0 : undefined,
+            stock_minimum: duplicateProduit?.stock_minimum === null ? 1 : undefined,
+            gestion_stock: true,
+          })
           .eq('id', editingProduit.id);
 
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            toast.error('Reference deja utilisee');
+            return;
+          }
+          throw error;
+        }
         toast.success('Produit modifié');
       } else {
         const { error } = await supabase
@@ -170,9 +204,18 @@ export default function ProduitsPage() {
             ...dataToSave,
             user_id: user!.id,
             type: 'custom',
+            stock_actuel: 0,
+            stock_minimum: 1,
+            gestion_stock: true,
           }]);
 
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            toast.error('Reference deja utilisee');
+            return;
+          }
+          throw error;
+        }
         toast.success('Produit ajouté');
       }
 
