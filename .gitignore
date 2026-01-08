@@ -28,6 +28,7 @@ yarn-error.log*
 .env*.local
 .env
 .env.*
+!.env.example
 
 # deno cache (supabase functions)
 /supabase/functions/node_modules/

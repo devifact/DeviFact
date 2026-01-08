@@ -66,11 +66,11 @@ BEGIN
   WHERE id = p_devis_id AND user_id = p_user_id;
   
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Devis non trouvÇ¸';
+    RAISE EXCEPTION 'Devis non trouve';
   END IF;
   
   IF EXISTS (SELECT 1 FROM factures WHERE devis_id = p_devis_id) THEN
-    RAISE EXCEPTION 'Une facture existe dÇ¸jÇÿ pour ce devis';
+    RAISE EXCEPTION 'Une facture existe deja pour ce devis';
   END IF;
   
   v_numero_facture := generate_facture_number(p_user_id);

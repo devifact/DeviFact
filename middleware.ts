@@ -41,22 +41,21 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
-  if (maintenanceBypassToken && searchParams.get('maintenance_token') === maintenanceBypassToken) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.searchParams.delete('maintenance_token');
-    if (redirectUrl.pathname === MAINTENANCE_PATH) {
-      redirectUrl.pathname = '/';
+  const headerBypass = maintenanceBypassToken
+    && request.headers.get('x-maintenance-bypass') === maintenanceBypassToken;
+  if (headerBypass) {
+    const response = NextResponse.next();
+    if (!request.cookies.get(bypassCookieName)) {
+      response.cookies.set(bypassCookieName, maintenanceBypassToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 60 * 60 * 8,
+      });
     }
-    const response = NextResponse.redirect(redirectUrl);
-    response.cookies.set(bypassCookieName, maintenanceBypassToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 60 * 60 * 8,
-    });
     return response;
   }
 

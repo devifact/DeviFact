@@ -97,6 +97,9 @@ serve(async (req: Request) => {
     const priceId = plan === 'mensuel'
       ? Deno.env.get('STRIPE_PRICE_MONTHLY')
       : Deno.env.get('STRIPE_PRICE_ANNUAL');
+    if (!priceId) {
+      throw new Error('Prix Stripe non configure.');
+    }
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
