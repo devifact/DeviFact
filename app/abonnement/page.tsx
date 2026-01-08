@@ -488,10 +488,10 @@ export default function AbonnementPage() {
           </p>
         </div>
         <div className="mt-8 bg-blue-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">
             Configuration Stripe requise
           </h3>
-          <p className="text-gray-700 mb-4">
+          <p className="text-blue-700 mb-4">
             Pour activer les paiements par abonnement, vous devez configurer Stripe.
           </p>
           <a
@@ -507,3 +507,5 @@ export default function AbonnementPage() {
     </DashboardLayout>
   );
 }
+
+
