@@ -1,6 +1,6 @@
 # 🧾 DevisFact.fr
 
-### Devis & factures intelligents pour Artisans et Auto-Entrepreneurs 🇫🇷
+## Devis & factures intelligents pour Artisans et Auto-Entrepreneurs 🇫🇷
 
 **DeviFact.fr** est une application SaaS française conçue pour les **artisans** et **auto-entrepreneurs**.  
 Elle permet de créer facilement des **devis et factures professionnels**, de gérer **clients, produits et fournisseurs**, et d’activer des fonctionnalités avancées via une **option premium** (comptabilité & gestion des stocks).

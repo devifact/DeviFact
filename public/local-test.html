@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Test Page</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      h1,
+      h2 {
+        margin: 0 0 12px;
+      }
+      p {
+        margin: 0 0 16px;
+        color: #cbd5f5;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #2563eb;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 6px 6px 0 0;
+      }
+      button.secondary {
+        background: #0f172a;
+        border: 1px solid #334155;
+      }
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0b1220;
+        color: #e2e8f0;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        color: #94a3b8;
+      }
+      pre {
+        background: #0b1220;
+        border: 1px solid #1f2937;
+        border-radius: 8px;
+        padding: 12px;
+        min-height: 80px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      iframe {
+        width: 100%;
+        height: 640px;
+        border: 1px solid #1f2937;
+        border-radius: 12px;
+        background: #0b1220;
+      }
+      .note {
+        font-size: 12px;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Local test page</h1>
+      <p>
+        This page is served from <code>/public</code> and is safe for local testing.
+        The iframe below loads the real Next.js app (same JS/CSS as production build).
+      </p>
+
+      <div class="grid">
+        <section class="card" aria-labelledby="quick-links">
+          <h2 id="quick-links">Quick links</h2>
+          <button data-open="/">Home</button>
+          <button data-open="/login">Login</button>
+          <button data-open="/dashboard">Dashboard</button>
+          <button data-open="/devis">Devis</button>
+          <button data-open="/factures">Factures</button>
+          <button data-open="/abonnement">Abonnement</button>
+          <button data-open="/profil" class="secondary">Profil</button>
+          <p class="note">Opens in a new tab. Use your real auth flow.</p>
+        </section>
+
+        <section class="card" aria-labelledby="custom-fetch">
+          <h2 id="custom-fetch">Custom fetch</h2>
+          <label for="url-input">URL</label>
+          <input id="url-input" placeholder="http://localhost:3000/" value="http://localhost:3000/" />
+          <button id="run-fetch">Fetch</button>
+          <pre id="fetch-log" aria-live="polite">Waiting...</pre>
+          <p class="note">Use this to test any endpoint manually.</p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="app-preview">
+        <h2 id="app-preview">App preview (real JS/CSS)</h2>
+        <iframe src="/dashboard" title="App preview"></iframe>
+        <p class="note">If you are not logged in, the app may redirect to /login.</p>
+      </section>
+    </main>
+
+    <script>
+      const openButtons = document.querySelectorAll("[data-open]");
+      openButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const path = button.getAttribute("data-open");
+          if (path) {
+            window.open(path, "_blank", "noopener,noreferrer");
+          }
+        });
+      });
+
+      const logEl = document.getElementById("fetch-log");
+      const urlInput = document.getElementById("url-input");
+      const runFetch = document.getElementById("run-fetch");
+
+      runFetch.addEventListener("click", async () => {
+        const url = urlInput.value.trim();
+        if (!url) {
+          logEl.textContent = "Please enter a URL.";
+          return;
+        }
+        logEl.textContent = "Fetching...";
+        try {
+          const start = performance.now();
+          const res = await fetch(url, { method: "GET", credentials: "include" });
+          const end = performance.now();
+          const text = await res.text();
+          logEl.textContent =
+            "Status: " + res.status + "\n" +
+            "Time: " + Math.round(end - start) + "ms\n\n" +
+            text.slice(0, 2000);
+        } catch (err) {
+          logEl.textContent = "Error: " + (err && err.message ? err.message : String(err));
+        }
+      });
+    </script>
+  </body>
+</html>
