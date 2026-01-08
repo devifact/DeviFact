@@ -2,8 +2,11 @@ import "jsr:@supabase/functions-js@2.89.0/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.11.0";
 import { createClient } from "npm:@supabase/supabase-js@2.89.0";
 
+const SITE_URL = (Deno.env.get("SITE_URL") ?? Deno.env.get("NEXT_PUBLIC_SITE_URL") ?? "https://devisfact.fr")
+  .replace(/\/+$/, "");
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": SITE_URL,
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, stripe-signature",
 };
@@ -20,7 +23,7 @@ const supabaseClient = createClient(
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }

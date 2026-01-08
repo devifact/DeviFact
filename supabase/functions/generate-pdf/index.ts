@@ -2,11 +2,17 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 import { PDFDocument, PDFFont, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+const SITE_URL = (Deno.env.get('SITE_URL') ?? Deno.env.get('NEXT_PUBLIC_SITE_URL') ?? 'https://devisfact.fr')
+  .replace(/\/+$/, '');
+const ALLOWED_ORIGINS = new Set([SITE_URL]);
+
+const buildCorsHeaders = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.has(origin) ? origin : SITE_URL,
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-};
+});
+
+const sanitizeFilenamePart = (value: string) => value.replace(/[^A-Za-z0-9_-]/g, '');
 
 type ProfileData = {
   logo_url?: string | null;
@@ -348,6 +354,19 @@ const generatePdf = async (
 };
 
 serve(async (req: Request) => {
+  const requestOrigin = req.headers.get('origin');
+  const corsHeaders = buildCorsHeaders(requestOrigin);
+
+  if (requestOrigin && !ALLOWED_ORIGINS.has(requestOrigin)) {
+    return new Response(
+      JSON.stringify({ error: 'Origin not allowed' }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -398,11 +417,14 @@ serve(async (req: Request) => {
     );
     const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
 
+    const numeroRaw = document.numero ? String(document.numero) : '';
+    const safeNumero = sanitizeFilenamePart(numeroRaw) || 'document';
+
     return new Response(pdfBlob, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${type}-${document.numero}.pdf"`,
+        'Content-Disposition': `attachment; filename="${type}-${safeNumero}.pdf"`,
       },
     });
   } catch (error) {

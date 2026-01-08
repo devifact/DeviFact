@@ -1,17 +1,19 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey, apikey',
-};
-
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? '';
 const SITE_URL_RAW = Deno.env.get('SITE_URL') ?? Deno.env.get('NEXT_PUBLIC_SITE_URL') ?? '';
+const SITE_URL = normalizeSiteUrl(SITE_URL_RAW || 'https://devisfact.fr');
+const ALLOWED_ORIGINS = new Set([SITE_URL]);
+
+const buildCorsHeaders = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.has(origin) ? origin : SITE_URL,
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey, apikey',
+});
 
 const TOKEN_TTL_MS = 15 * 60 * 1000;
 const TOKEN_BYTES = 32;
@@ -95,8 +97,18 @@ function isValidFrenchPhone(value: string) {
 }
 
 serve(async (req: Request) => {
+  const requestOrigin = req.headers.get('origin');
+  const corsHeaders = buildCorsHeaders(requestOrigin);
+
+  if (requestOrigin && !ALLOWED_ORIGINS.has(requestOrigin)) {
+    return new Response(JSON.stringify({ error: 'Origin not allowed' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
@@ -110,7 +122,7 @@ serve(async (req: Request) => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
       throw new Error('Supabase environment is not configured');
     }
-    const siteUrl = normalizeSiteUrl(SITE_URL_RAW);
+    const siteUrl = SITE_URL;
     if (!siteUrl) {
       throw new Error('Site URL not configured');
     }

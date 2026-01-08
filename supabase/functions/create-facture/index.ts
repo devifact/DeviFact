@@ -1,16 +1,33 @@
 import "jsr:@supabase/functions-js@2.89.0/edge-runtime.d.ts";
 import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+const SITE_URL = (Deno.env.get('SITE_URL') ?? Deno.env.get('NEXT_PUBLIC_SITE_URL') ?? 'https://devisfact.fr')
+  .replace(/\/+$/, '');
+const ALLOWED_ORIGINS = new Set([SITE_URL]);
+
+const buildCorsHeaders = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.has(origin) ? origin : SITE_URL,
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-};
+});
 
 Deno.serve(async (req: Request) => {
+  const requestOrigin = req.headers.get('origin');
+  const corsHeaders = buildCorsHeaders(requestOrigin);
+
+  if (requestOrigin && !ALLOWED_ORIGINS.has(requestOrigin)) {
+    return new Response(
+      JSON.stringify({ error: 'Origin not allowed' }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
@@ -23,14 +40,14 @@ Deno.serve(async (req: Request) => {
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      throw new Error('Non authentifiÃ©');
+      throw new Error('Non authentifie');
     }
 
     const token = authHeader.replace('Bearer ', '');
     const { data: { user } } = await supabaseClient.auth.getUser(token);
 
     if (!user) {
-      throw new Error('Non authentifiÃ©');
+      throw new Error('Non authentifie');
     }
 
     const { devis_id } = await req.json();

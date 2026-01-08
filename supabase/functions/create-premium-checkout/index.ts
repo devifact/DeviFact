@@ -2,20 +2,37 @@ import "jsr:@supabase/functions-js@2.89.0/edge-runtime.d.ts";
 import Stripe from "npm:stripe@14.11.0";
 import { createClient } from "npm:@supabase/supabase-js@2.89.0";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+const SITE_URL = (Deno.env.get("SITE_URL") ?? Deno.env.get("NEXT_PUBLIC_SITE_URL") ?? "https://devisfact.fr")
+  .replace(/\/+$/, "");
+const ALLOWED_ORIGINS = new Set([SITE_URL]);
+
+const buildCorsHeaders = (origin: string | null) => ({
+  "Access-Control-Allow-Origin": origin && ALLOWED_ORIGINS.has(origin) ? origin : SITE_URL,
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+});
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
   apiVersion: "2023-10-16",
 });
 
 Deno.serve(async (req: Request) => {
+  const requestOrigin = req.headers.get("origin");
+  const corsHeaders = buildCorsHeaders(requestOrigin);
+
+  if (requestOrigin && !ALLOWED_ORIGINS.has(requestOrigin)) {
+    return new Response(
+      JSON.stringify({ error: "Origin not allowed" }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
@@ -36,7 +53,7 @@ Deno.serve(async (req: Request) => {
     } = await supabaseClient.auth.getUser();
 
     if (!user) {
-      throw new Error("Non authentifiÃ©");
+      throw new Error("Non authentifie");
     }
 
     const { plan } = await req.json();
@@ -56,11 +73,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (abonnement.statut === "trial") {
-      throw new Error("L'option premium n'est pas disponible pendant la pÃ©riode d'essai. Veuillez d'abord souscrire Ã  l'abonnement principal.");
+      throw new Error("L'option premium n'est pas disponible pendant la periode d'essai. Veuillez d'abord souscrire a l'abonnement principal.");
     }
 
     if (abonnement.statut !== "active") {
-      throw new Error("Votre abonnement principal doit Ãªtre actif pour souscrire Ã  l'option premium.");
+      throw new Error("Votre abonnement principal doit etre actif pour souscrire a l'option premium.");
     }
 
     if (!abonnement.stripe_customer_id) {
@@ -72,7 +89,7 @@ Deno.serve(async (req: Request) => {
       : Deno.env.get("STRIPE_PREMIUM_PRICE_ANNUAL");
 
     if (!premiumPriceId) {
-      throw new Error("Les prix premium Stripe ne sont pas configurÃ©s. Veuillez configurer STRIPE_PREMIUM_PRICE_MONTHLY et STRIPE_PREMIUM_PRICE_ANNUAL.");
+      throw new Error("Les prix premium Stripe ne sont pas configures. Veuillez configurer STRIPE_PREMIUM_PRICE_MONTHLY et STRIPE_PREMIUM_PRICE_ANNUAL.");
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -92,8 +109,8 @@ Deno.serve(async (req: Request) => {
           is_premium: "true",
         },
       },
-      success_url: `${req.headers.get("origin")}/abonnement?premium_success=true`,
-      cancel_url: `${req.headers.get("origin")}/abonnement?premium_canceled=true`,
+      success_url: `${SITE_URL}/abonnement?premium_success=true`,
+      cancel_url: `${SITE_URL}/abonnement?premium_canceled=true`,
       metadata: {
         user_id: user.id,
         premium_plan: plan,

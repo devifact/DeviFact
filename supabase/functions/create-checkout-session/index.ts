@@ -2,20 +2,37 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import Stripe from 'npm:stripe@14.11.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.89.0';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+const SITE_URL = (Deno.env.get('SITE_URL') ?? Deno.env.get('NEXT_PUBLIC_SITE_URL') ?? 'https://devisfact.fr')
+  .replace(/\/+$/, '');
+const ALLOWED_ORIGINS = new Set([SITE_URL]);
+
+const buildCorsHeaders = (origin: string | null) => ({
+  'Access-Control-Allow-Origin': origin && ALLOWED_ORIGINS.has(origin) ? origin : SITE_URL,
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
-};
+});
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
   apiVersion: '2023-10-16',
 });
 
 serve(async (req: Request) => {
+  const requestOrigin = req.headers.get('origin');
+  const corsHeaders = buildCorsHeaders(requestOrigin);
+
+  if (requestOrigin && !ALLOWED_ORIGINS.has(requestOrigin)) {
+    return new Response(
+      JSON.stringify({ error: 'Origin not allowed' }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: corsHeaders,
     });
   }
@@ -36,7 +53,7 @@ serve(async (req: Request) => {
     } = await supabaseClient.auth.getUser();
 
     if (!user) {
-      throw new Error('Non authentifiÃ©');
+      throw new Error('Non authentifie');
     }
 
     const { plan } = await req.json();
@@ -91,8 +108,8 @@ serve(async (req: Request) => {
         },
       ],
       mode: 'subscription',
-      success_url: `${req.headers.get('origin')}/abonnement?success=true`,
-      cancel_url: `${req.headers.get('origin')}/abonnement?canceled=true`,
+      success_url: `${SITE_URL}/abonnement?success=true`,
+      cancel_url: `${SITE_URL}/abonnement?canceled=true`,
       metadata: {
         user_id: user.id,
         plan: plan,
