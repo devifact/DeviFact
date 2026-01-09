@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
+import { SearchBar } from '@/components/search-bar.tsx';
 
 type Fournisseur = Database['public']['Tables']['fournisseurs']['Row'];
 type Produit = Database['public']['Tables']['produits']['Row'];
@@ -23,6 +24,8 @@ export default function FournisseursPage() {
   const [selectedFournisseur, setSelectedFournisseur] = useState<Fournisseur | null>(null);
   const [produits, setProduits] = useState<Produit[]>([]);
   const [produitsPrices, setProduitsPrices] = useState<ProduitFournisseur[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [formData, setFormData] = useState({
     nom: '',
@@ -261,18 +264,33 @@ export default function FournisseursPage() {
     return null;
   }
 
+  const normalizedSearch = debouncedSearch.trim().toLowerCase();
+  const hasSearch = normalizedSearch.length > 0;
+  const filteredFournisseurs = fournisseurs.filter((fournisseur) => {
+    if (!normalizedSearch) return true;
+    return fournisseur.nom.toLowerCase().includes(normalizedSearch);
+  });
+
   return (
     <DashboardLayout>
       <div>
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Fournisseurs</h1>
-          <button
-            type="button"
-            onClick={() => openModal()}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
-          >
-            Ajouter un fournisseur
-          </button>
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-3xl font-bold text-gray-900">Fournisseurs</h1>
+            <button
+              type="button"
+              onClick={() => openModal()}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium"
+            >
+              Ajouter un fournisseur
+            </button>
+          </div>
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onDebouncedChange={setDebouncedSearch}
+            placeholder="Rechercher un fournisseur"
+          />
         </div>
 
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -297,14 +315,14 @@ export default function FournisseursPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {fournisseurs.length === 0 ? (
+              {filteredFournisseurs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    Aucun fournisseur
+                    {hasSearch ? 'Aucun resultat' : 'Aucun fournisseur'}
                   </td>
                 </tr>
               ) : (
-                fournisseurs.map((fournisseur) => (
+                filteredFournisseurs.map((fournisseur) => (
                   <tr key={fournisseur.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {fournisseur.nom}

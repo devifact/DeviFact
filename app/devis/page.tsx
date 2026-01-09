@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import type { Database } from '@/lib/database.types.ts';
+import { SearchBar } from '@/components/search-bar.tsx';
 
 type Devis = Database['public']['Tables']['devis']['Row'];
 type ClientPreview = {
@@ -33,6 +34,8 @@ export default function DevisPage() {
   const [factureLoadingId, setFactureLoadingId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const fetchDevis = useCallback(async () => {
     if (!user) return;
@@ -171,12 +174,27 @@ export default function DevisPage() {
     }
   };
 
+  const normalizedSearch = debouncedSearch.trim().toLowerCase();
+  const hasSearch = normalizedSearch.length > 0;
+  const filteredDevis = devis.filter((item) => {
+    if (!normalizedSearch) return true;
+    const numero = item.numero?.toLowerCase() || '';
+    const clientName = (item.client?.societe || item.client?.nom || '').toLowerCase();
+    return numero.includes(normalizedSearch) || clientName.includes(normalizedSearch);
+  });
+
   const toggleSelectAll = () => {
-    if (selectedIds.length === devis.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(devis.map((d) => d.id));
+    if (filteredDevis.length === 0) return;
+    const allVisibleSelected = filteredDevis.every((item) => selectedIds.includes(item.id));
+    if (allVisibleSelected) {
+      const visibleIds = new Set(filteredDevis.map((item) => item.id));
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.has(id)));
+      return;
     }
+    setSelectedIds((prev) => {
+      const merged = new Set([...prev, ...filteredDevis.map((item) => item.id)]);
+      return Array.from(merged);
+    });
   };
 
   const toggleSelectDevis = (devisId: string) => {
@@ -306,7 +324,8 @@ export default function DevisPage() {
     return null;
   }
 
-  const allSelected = devis.length > 0 && selectedIds.length === devis.length;
+  const allSelected = filteredDevis.length > 0
+    && filteredDevis.every((item) => selectedIds.includes(item.id));
   const selectedSingle = selectedIds.length === 1
     ? devis.find((d) => d.id === selectedIds[0]) ?? null
     : null;
@@ -328,6 +347,15 @@ export default function DevisPage() {
           >
             Créer un devis
           </button>
+        </div>
+
+        <div className="mb-6">
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onDebouncedChange={setDebouncedSearch}
+            placeholder="Rechercher un devis"
+          />
         </div>
 
         {!profile?.profil_complete && (
@@ -414,14 +442,14 @@ export default function DevisPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {devis.length === 0 ? (
+              {filteredDevis.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                    Aucun devis
+                    {hasSearch ? 'Aucun resultat' : 'Aucun devis'}
                   </td>
                 </tr>
               ) : (
-                devis.map((d) => (
+                filteredDevis.map((d) => (
                   <tr
                     key={d.id}
                     onClick={() => handleViewDevis(d.id)}

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import type { Database } from '@/lib/database.types.ts';
+import { SearchBar } from '@/components/search-bar.tsx';
 
 type Facture = Database['public']['Tables']['factures']['Row'];
 type ClientPreview = {
@@ -44,6 +45,8 @@ export default function FacturesPage() {
   const [creatingFacture, setCreatingFacture] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const fetchFactures = useCallback(async () => {
     if (!user) return;
@@ -296,12 +299,27 @@ export default function FacturesPage() {
     }
   };
 
+  const normalizedSearch = debouncedSearch.trim().toLowerCase();
+  const hasSearch = normalizedSearch.length > 0;
+  const filteredFactures = factures.filter((item) => {
+    if (!normalizedSearch) return true;
+    const numero = item.numero?.toLowerCase() || '';
+    const clientName = (item.client?.societe || item.client?.nom || '').toLowerCase();
+    return numero.includes(normalizedSearch) || clientName.includes(normalizedSearch);
+  });
+
   const toggleSelectAll = () => {
-    if (selectedIds.length === factures.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(factures.map((f) => f.id));
+    if (filteredFactures.length === 0) return;
+    const allVisibleSelected = filteredFactures.every((item) => selectedIds.includes(item.id));
+    if (allVisibleSelected) {
+      const visibleIds = new Set(filteredFactures.map((item) => item.id));
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.has(id)));
+      return;
     }
+    setSelectedIds((prev) => {
+      const merged = new Set([...prev, ...filteredFactures.map((item) => item.id)]);
+      return Array.from(merged);
+    });
   };
 
   const toggleSelectFacture = (factureId: string) => {
@@ -369,7 +387,8 @@ export default function FacturesPage() {
     return null;
   }
 
-  const allSelected = factures.length > 0 && selectedIds.length === factures.length;
+  const allSelected = filteredFactures.length > 0
+    && filteredFactures.every((item) => selectedIds.includes(item.id));
   const hasSelection = selectedIds.length > 0;
   const canFacturer = false;
   const canModifier = false;
@@ -388,6 +407,15 @@ export default function FacturesPage() {
           >
             Créer une facture
           </button>
+        </div>
+
+        <div className="mb-6">
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onDebouncedChange={setDebouncedSearch}
+            placeholder="Rechercher une facture"
+          />
         </div>
 
         {!profile?.profil_complete && (
@@ -479,14 +507,14 @@ export default function FacturesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {factures.length === 0 ? (
+                {filteredFactures.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
-                      Aucune facture
+                      {hasSearch ? 'Aucun resultat' : 'Aucune facture'}
                     </td>
                   </tr>
                 ) : (
-                  factures.map((f) => (
+                  filteredFactures.map((f) => (
                     <tr
                       key={f.id}
                       onClick={() => handleViewFacture(f.id)}

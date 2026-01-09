@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { SearchBar } from '@/components/search-bar.tsx';
 
 type Produit = {
   id: string;
@@ -45,6 +46,8 @@ export default function ProduitsPage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const tvaOptions = [0, 5.5, 10, 20];
   const normalizeReference = (value: string) => {
     const trimmed = value.trim();
@@ -149,6 +152,17 @@ export default function ProduitsPage() {
     return fournisseurMap.get(id) || '-';
   };
 
+  const normalizedSearch = debouncedSearch.trim().toLowerCase();
+  const hasSearch = normalizedSearch.length > 0;
+  const matchesSearch = (produit: Produit) => {
+    if (!normalizedSearch) return true;
+    const designation = produit.designation?.toLowerCase() || '';
+    const reference = produit.reference?.toLowerCase() || '';
+    return designation.includes(normalizedSearch) || reference.includes(normalizedSearch);
+  };
+  const filteredStandards = produitsStandards.filter(matchesSearch);
+  const filteredCustom = produitsCustom.filter(matchesSearch);
+
   const openModal = (produit?: Produit, typeOverride?: 'standard' | 'custom') => {
     if (produit) {
       setEditingProduit(produit);
@@ -234,6 +248,32 @@ export default function ProduitsPage() {
     setImageError('');
   };
 
+  const uploadImageFile = async (file: File) => {
+    const fileExt = file.name.split('.').pop() || 'png';
+    const fileName = `produit-${Date.now()}.${fileExt}`;
+    const filePath = `${user!.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase
+      .storage
+      .from('produits')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type,
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data } = supabase.storage.from('produits').getPublicUrl(filePath);
+    if (!data?.publicUrl) {
+      throw new Error('Impossible de recuperer le lien de l image.');
+    }
+
+    return data.publicUrl;
+  };
+
   const handleUploadImage = async () => {
     if (!imageFile || !user) {
       setImageError('Selectionnez une image avant de televerser.');
@@ -244,29 +284,8 @@ export default function ProduitsPage() {
     setImageError('');
 
     try {
-      const fileExt = imageFile.name.split('.').pop() || 'png';
-      const fileName = `produit-${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase
-        .storage
-        .from('produits')
-        .upload(filePath, imageFile, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: imageFile.type,
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data } = supabase.storage.from('produits').getPublicUrl(filePath);
-      if (!data?.publicUrl) {
-        throw new Error('Impossible de recuperer le lien de l image.');
-      }
-
-      setFormData({ ...formData, image_url: data.publicUrl });
+      const publicUrl = await uploadImageFile(imageFile);
+      setFormData({ ...formData, image_url: publicUrl });
       setImageFile(null);
       if (imagePreviewUrl) {
         URL.revokeObjectURL(imagePreviewUrl);
@@ -311,11 +330,32 @@ export default function ProduitsPage() {
         gestion_stock: true,
       };
 
+      let imageUrlForSave = dataToSave.image_url;
+      if (imageFile) {
+        setImageUploading(true);
+        setImageError('');
+        try {
+          imageUrlForSave = await uploadImageFile(imageFile);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Erreur lors du televersement.';
+          setImageError(message);
+          throw error;
+        } finally {
+          setImageUploading(false);
+        }
+      }
+
+      const payloadToSave = {
+        ...dataToSave,
+        image_url: imageUrlForSave || null,
+      };
+
       if (editingProduit) {
         const { error } = await supabase
           .from('produits')
           .update({
-            ...dataToSave,
+            ...payloadToSave,
             stock_actuel: duplicateProduit?.stock_actuel === null ? 0 : undefined,
             stock_minimum: duplicateProduit?.stock_minimum === null ? 1 : undefined,
             gestion_stock: true,
@@ -334,7 +374,7 @@ export default function ProduitsPage() {
         const { error } = await supabase
           .from('produits')
           .insert([{
-            ...dataToSave,
+            ...payloadToSave,
             user_id: user!.id,
             type: createProductType,
             stock_actuel: 0,
@@ -476,8 +516,14 @@ export default function ProduitsPage() {
   return (
     <DashboardLayout>
       <div>
-        <div className="mb-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Produits et Prestations</h1>
+          <SearchBar
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onDebouncedChange={setDebouncedSearch}
+            placeholder="Rechercher un produit"
+          />
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -530,14 +576,14 @@ export default function ProduitsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {produitsStandards.length === 0 ? (
+              {filteredStandards.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
-                    Aucun produit standard
+                    {hasSearch ? 'Aucun resultat' : 'Aucun produit standard'}
                   </td>
                 </tr>
               ) : (
-                produitsStandards.map((produit) => (
+                filteredStandards.map((produit) => (
                   <tr key={produit.id} className={!produit.actif ? 'bg-gray-50 opacity-60' : ''}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -680,14 +726,14 @@ export default function ProduitsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {produitsCustom.length === 0 ? (
+                {filteredCustom.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
-                      Aucun produit personalise. Cliquez sur "Ajouter" pour commencer.
+                      {hasSearch ? 'Aucun resultat' : 'Aucun produit personalise. Cliquez sur "Ajouter" pour commencer.'}
                     </td>
                   </tr>
                 ) : (
-                  produitsCustom.map((produit) => (
+                  filteredCustom.map((produit) => (
                     <tr
                       key={produit.id}
                       onClick={handleRowClick(produit)}
