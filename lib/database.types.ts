@@ -171,6 +171,7 @@ export interface Database {
           taux_tva_defaut: number | null
           marge_defaut: number | null
           fournisseur_defaut_id: string | null
+          image_url: string | null
           code_standard: string | null
           stock_actuel: number | null
           stock_minimum: number | null
@@ -191,6 +192,7 @@ export interface Database {
           taux_tva_defaut?: number | null
           marge_defaut?: number | null
           fournisseur_defaut_id?: string | null
+          image_url?: string | null
           code_standard?: string | null
           stock_actuel?: number | null
           stock_minimum?: number | null
@@ -211,6 +213,7 @@ export interface Database {
           taux_tva_defaut?: number | null
           marge_defaut?: number | null
           fournisseur_defaut_id?: string | null
+          image_url?: string | null
           code_standard?: string | null
           stock_actuel?: number | null
           stock_minimum?: number | null

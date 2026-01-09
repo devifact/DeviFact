@@ -65,6 +65,7 @@ export default function NouveauDevisPage() {
   const [loading, setLoading] = useState(false);
   const [loadingDevis, setLoadingDevis] = useState(false);
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [creatingProductId, setCreatingProductId] = useState<string | null>(null);
 
   const [clientId, setClientId] = useState('');
   const [numero, setNumero] = useState('');
@@ -360,7 +361,7 @@ export default function NouveauDevisPage() {
     return { label: 'En stock', className: 'bg-green-100 text-green-700' };
   };
 
-  const handleSaveProduct = async (ligne: LigneDevis) => {
+  const handleUpdateProduct = async (ligne: LigneDevis) => {
     if (!user) return;
     const designation = ligne.designation.trim();
     if (!designation) {
@@ -484,6 +485,78 @@ export default function NouveauDevisPage() {
       toast.error(message);
     } finally {
       setSavingProductId(null);
+    }
+  };
+
+  const handleCreateProduct = async (ligne: LigneDevis) => {
+    if (!user) return;
+    const designation = ligne.designation.trim();
+    if (!designation) {
+      toast.error('La designation est requise');
+      return;
+    }
+
+    if (creatingProductId === ligne.id) return;
+    setCreatingProductId(ligne.id);
+
+    try {
+      const reference = ligne.reference.trim();
+      const referenceNormalized = reference ? reference.toUpperCase() : '';
+      const unite = ligne.unite.trim();
+      const margeValue = Number.isFinite(ligne.marge_pourcentage)
+        ? ligne.marge_pourcentage
+        : defaultMarge;
+
+      const payload = {
+        designation,
+        reference: referenceNormalized || null,
+        categorie: null,
+        unite: unite || null,
+        prix_ht_defaut: ligne.prix_unitaire_ht,
+        taux_tva_defaut: ligne.taux_tva,
+        marge_defaut: margeValue,
+        fournisseur_defaut_id: ligne.fournisseur_id || null,
+        actif: true,
+        gestion_stock: true,
+      };
+
+      const { data: inserted, error } = await supabase
+        .from('produits')
+        .insert([
+          {
+            ...payload,
+            user_id: user.id,
+            type: 'custom',
+            stock_actuel: 0,
+            stock_minimum: 1,
+            gestion_stock: true,
+          },
+        ])
+        .select('id, stock_actuel, stock_minimum, gestion_stock')
+        .single();
+
+      if (error) throw error;
+
+      setLignes((current) =>
+        current.map((item) =>
+          item.id === ligne.id
+            ? {
+                ...item,
+                produit_id: inserted.id,
+                stock_actuel: inserted.stock_actuel ?? 0,
+                stock_minimum: inserted.stock_minimum ?? 1,
+                gestion_stock: inserted.gestion_stock ?? true,
+              }
+            : item
+        )
+      );
+      toast.success('Nouveau produit enregistre');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de l enregistrement du produit';
+      toast.error(message);
+    } finally {
+      setCreatingProductId(null);
     }
   };
 
@@ -752,11 +825,19 @@ export default function NouveauDevisPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleSaveProduct(ligne)}
-                        disabled={savingProductId === ligne.id}
+                        onClick={() => handleUpdateProduct(ligne)}
+                        disabled={savingProductId === ligne.id || creatingProductId === ligne.id}
                         className="text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {savingProductId === ligne.id ? 'Enregistrement...' : (ligne.produit_id ? 'Mettre a jour' : 'Enregistrer')}
+                        {savingProductId === ligne.id ? 'Mise a jour...' : 'Mettre a jour'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleCreateProduct(ligne)}
+                        disabled={creatingProductId === ligne.id || savingProductId === ligne.id}
+                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {creatingProductId === ligne.id ? 'Enregistrement...' : 'Enregistrer'}
                       </button>
                     </div>
                   </div>
