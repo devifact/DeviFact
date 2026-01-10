@@ -13,6 +13,8 @@ type Client = Database['public']['Tables']['clients']['Row'];
 type ClientUpdate = Database['public']['Tables']['clients']['Update'];
 type Devis = Database['public']['Tables']['devis']['Row'];
 type Facture = Database['public']['Tables']['factures']['Row'];
+type DevisHistory = Pick<Devis, 'id' | 'numero' | 'date_creation' | 'statut' | 'total_ttc'>;
+type FactureHistory = Pick<Facture, 'id' | 'numero' | 'date_emission' | 'statut' | 'total_ttc'>;
 type ClientFormData = {
   nom: string;
   societe: string;
@@ -37,8 +39,8 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [viewClient, setViewClient] = useState<Client | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
-  const [clientDevis, setClientDevis] = useState<Devis[]>([]);
-  const [clientFactures, setClientFactures] = useState<Facture[]>([]);
+  const [clientDevis, setClientDevis] = useState<DevisHistory[]>([]);
+  const [clientFactures, setClientFactures] = useState<FactureHistory[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -167,7 +169,7 @@ export default function ClientsPage() {
       const [devisResult, facturesResult] = await Promise.all([
         supabase
           .from('devis')
-          .select('id, numero, date_creation, date_validite, statut, total_ttc')
+          .select('id, numero, date_creation, statut, total_ttc')
           .eq('user_id', user!.id)
           .eq('client_id', client.id)
           .order('date_creation', { ascending: false }),
