@@ -24,8 +24,26 @@ type ProfileData = {
   telephone?: string | null;
   email_contact?: string | null;
   siret?: string | null;
+  code_ape?: string | null;
   tva_applicable?: boolean | null;
   taux_tva?: number | null;
+  iban?: string | null;
+  bic?: string | null;
+};
+
+type CompanySettingsData = {
+  conditions_reglement?: string | null;
+  delai_paiement?: string | null;
+  penalites_retard?: string | null;
+  indemnite_recouvrement_montant?: number | null;
+  indemnite_recouvrement_texte?: string | null;
+  escompte?: string | null;
+  titulaire_compte?: string | null;
+  banque_nom?: string | null;
+  domiciliation?: string | null;
+  modes_paiement_acceptes?: string | null;
+  reference_paiement?: string | null;
+  rib?: string | null;
   tva_intracommunautaire?: string | null;
 };
 
@@ -87,8 +105,6 @@ const buildProfileLines = (profile: ProfileData) => {
   if (profile.pays) lines.push(profile.pays);
   if (profile.telephone) lines.push(`Tel: ${profile.telephone}`);
   if (profile.email_contact) lines.push(`Email: ${profile.email_contact}`);
-  if (profile.siret) lines.push(`SIRET: ${profile.siret}`);
-  if (profile.tva_intracommunautaire) lines.push(`TVA: ${profile.tva_intracommunautaire}`);
   return lines;
 };
 
@@ -162,7 +178,8 @@ const generatePdf = async (
   profile: ProfileData,
   client: ClientData,
   lignes: LigneData[],
-  isTrialMode: boolean
+  isTrialMode: boolean,
+  companySettings?: CompanySettingsData | null
 ) => {
   const pdfDoc = await PDFDocument.create();
   const width = 595.28;
@@ -206,6 +223,24 @@ const generatePdf = async (
     page = pdfDoc.addPage([width, height]);
     y = height - margin;
     if (withTableHeader) drawTableHeader();
+  };
+
+  const drawSection = (titleText: string, lines: string[]) => {
+    if (!lines.length) return;
+    const safeLines = lines.filter((line) => line && line.trim().length > 0);
+    if (!safeLines.length) return;
+
+    ensureSpace(lineHeight * (safeLines.length + 2), false);
+    page.drawText(titleText, { x: margin, y, size: fontSize, font: fontBold });
+    y -= lineHeight;
+
+    for (const line of safeLines) {
+      const wrapped = wrapText(line, font, fontSize, width - margin * 2);
+      for (const chunk of wrapped) {
+        page.drawText(chunk, { x: margin, y, size: fontSize, font });
+        y -= lineHeight;
+      }
+    }
   };
 
   const title = `${type.toUpperCase()} ${document.numero ?? ''}`.trim();
@@ -350,6 +385,110 @@ const generatePdf = async (
     }
   }
 
+  const mentionDefaults = {
+    conditions_reglement: 'Paiement a 30 jours',
+    delai_paiement: 'Paiement a 30 jours',
+    penalites_retard: 'Taux BCE + 10 points',
+    indemnite_recouvrement_montant: 40,
+    indemnite_recouvrement_texte: 'EUR (article L441-6 du Code de commerce)',
+  };
+
+  const mentionConditions = companySettings?.conditions_reglement ?? mentionDefaults.conditions_reglement;
+  const mentionDelai = companySettings?.delai_paiement ?? mentionDefaults.delai_paiement;
+  const mentionPenalites = companySettings?.penalites_retard ?? mentionDefaults.penalites_retard;
+  const mentionIndemniteMontant = companySettings?.indemnite_recouvrement_montant ?? mentionDefaults.indemnite_recouvrement_montant;
+  const mentionIndemniteTexte = companySettings?.indemnite_recouvrement_texte ?? mentionDefaults.indemnite_recouvrement_texte;
+  const mentionEscompte = companySettings?.escompte ?? '';
+
+  const defaultTvaRate = typeof companySettings?.taux_tva_defaut === 'number'
+    ? companySettings.taux_tva_defaut
+    : (typeof profile.taux_tva === 'number'
+      ? profile.taux_tva
+      : (profile.tva_applicable === false ? 0 : 20));
+  const tvaNonApplicable = defaultTvaRate === 0;
+
+  const mentionParts = [
+    `Conditions: ${mentionConditions}`,
+    `Delai: ${mentionDelai}`,
+    `Penalites: ${mentionPenalites}`,
+    `Indemnite: ${formatMoney(mentionIndemniteMontant)} ${mentionIndemniteTexte}`,
+    mentionEscompte ? `Escompte: ${mentionEscompte}` : '',
+    tvaNonApplicable ? 'TVA non applicable, art. 293B du CGI' : '',
+  ].filter((part) => part && part.trim().length > 0);
+
+  const bankParts = [
+    companySettings?.titulaire_compte ? `Titulaire: ${companySettings.titulaire_compte}` : '',
+    companySettings?.banque_nom ? `Banque: ${companySettings.banque_nom}` : '',
+    companySettings?.domiciliation ? `Domiciliation: ${companySettings.domiciliation}` : '',
+    profile.iban ? `IBAN: ${profile.iban}` : '',
+    profile.bic ? `BIC: ${profile.bic}` : '',
+    companySettings?.reference_paiement ? `Reference paiement: ${companySettings.reference_paiement}` : '',
+    companySettings?.modes_paiement_acceptes ? `Modes de paiement: ${companySettings.modes_paiement_acceptes}` : '',
+  ].filter((part) => part && part.trim().length > 0);
+
+  const drawCompactSection = (titleText: string, content: string) => {
+    if (!content || !content.trim()) return;
+    const compactFontSize = 8;
+    const compactLineHeight = 10;
+    const wrapped = wrapText(content, font, compactFontSize, width - margin * 2);
+    const needed = lineHeight + compactLineHeight * wrapped.length + compactLineHeight;
+    ensureSpace(needed, false);
+
+    page.drawText(titleText, { x: margin, y, size: fontSize, font: fontBold });
+    y -= lineHeight;
+
+    for (const chunk of wrapped) {
+      page.drawText(chunk, { x: margin, y, size: compactFontSize, font });
+      y -= compactLineHeight;
+    }
+    y -= compactLineHeight;
+  };
+
+  drawCompactSection('Mentions obligatoires', mentionParts.join(' | '));
+  drawCompactSection('Informations bancaires', bankParts.join(' | '));
+
+  const footerAddressParts = [
+    profile.adresse,
+    [profile.code_postal, profile.ville].filter(Boolean).join(' ').trim(),
+  ].filter(Boolean);
+  const footerLines = [
+    profile.raison_sociale ? `Raison sociale: ${profile.raison_sociale}` : '',
+    footerAddressParts.length ? `Adresse siege: ${footerAddressParts.join(', ')}` : '',
+    profile.telephone ? `Tel: ${profile.telephone}` : '',
+    profile.email_contact ? `Email: ${profile.email_contact}` : '',
+    profile.siret ? `SIRET: ${profile.siret}` : '',
+    companySettings?.tva_intracommunautaire
+      ? `TVA intracommunautaire: ${companySettings.tva_intracommunautaire}`
+      : '',
+    profile.code_ape ? `Code APE: ${profile.code_ape}` : '',
+  ].filter((line) => line && line.trim().length > 0);
+
+  if (footerLines.length) {
+    const footerFontSize = 8;
+    const footerLineHeight = 10;
+    const footerChunks = footerLines.flatMap((line) =>
+      wrapText(line, font, footerFontSize, width - margin * 2)
+    );
+    const footerHeight = footerLineHeight * footerChunks.length + footerLineHeight;
+    if (y - footerHeight < margin) {
+      page = pdfDoc.addPage([width, height]);
+    }
+    const footerStartY = margin + footerLineHeight * (footerChunks.length - 1);
+    page.drawLine({
+      start: { x: margin, y: footerStartY + footerLineHeight },
+      end: { x: width - margin, y: footerStartY + footerLineHeight },
+      thickness: 1,
+      color: rgb(0.85, 0.85, 0.85),
+    });
+    let footerY = footerStartY;
+    for (const line of footerChunks) {
+      const textWidth = font.widthOfTextAtSize(line, footerFontSize);
+      const x = Math.max(margin, (width - textWidth) / 2);
+      page.drawText(line, { x, y: footerY, size: footerFontSize, font });
+      footerY -= footerLineHeight;
+    }
+  }
+
   return await pdfDoc.save();
 };
 
@@ -410,7 +549,23 @@ serve(async (req: Request) => {
       throw new Error('Missing document or client');
     }
 
-    const pdfBytes = await generatePdf(type, document, profile, client, lignes, isTrialMode);
+    const { data: settingsData, error: settingsError } = await supabaseClient
+      .from('company_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (settingsError) throw settingsError;
+
+    const pdfBytes = await generatePdf(
+      type,
+      document,
+      profile,
+      client,
+      lignes,
+      isTrialMode,
+      settingsData ?? null
+    );
     const pdfBuffer = pdfBytes.buffer.slice(
       pdfBytes.byteOffset,
       pdfBytes.byteOffset + pdfBytes.byteLength

@@ -14,6 +14,7 @@ type Facture = Database['public']['Tables']['factures']['Row'];
 type LigneFacture = Database['public']['Tables']['lignes_factures']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
 type Profile = Database['public']['Tables']['profiles']['Row'];
+type CompanySettings = Database['public']['Tables']['company_settings']['Row'];
 
 interface Paiement {
   id: string;
@@ -44,6 +45,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
   const router = useRouter();
   const searchParams = useSearchParams();
   const [facture, setFacture] = useState<FactureDetails | null>(null);
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [montantPaiement, setMontantPaiement] = useState('');
@@ -78,12 +80,21 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
         .eq('id', user.id)
         .single();
 
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('company_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (settingsError) throw settingsError;
+
       const factureDetails: FactureDetails = {
         ...data,
         profile: profileData || undefined,
       } as FactureDetails;
 
       setFacture(factureDetails);
+      setCompanySettings(settingsData ?? null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur lors du chargement.';
       toast.error(message);
@@ -237,10 +248,77 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     return null;
   }
 
-  const defaultTvaRate = typeof facture.profile?.taux_tva === 'number'
-    ? facture.profile.taux_tva
-    : (facture.profile?.tva_applicable === false ? 0 : 20);
+  const defaultTvaRate = typeof companySettings?.taux_tva_defaut === 'number'
+    ? companySettings.taux_tva_defaut
+    : (typeof facture.profile?.taux_tva === 'number'
+      ? facture.profile.taux_tva
+      : (facture.profile?.tva_applicable === false ? 0 : 20));
   const tvaNonApplicable = defaultTvaRate === 0;
+  const mentionsDefaults = {
+    conditions_reglement: 'Paiement a 30 jours',
+    delai_paiement: 'Paiement a 30 jours',
+    penalites_retard: 'Taux BCE + 10%',
+    indemnite_recouvrement_montant: 40,
+    indemnite_recouvrement_texte: 'EUR (article L441-6 du Code de commerce)',
+  };
+  const rawIndemnite = companySettings?.indemnite_recouvrement_montant
+    ?? facture.indemnite_recouvrement
+    ?? mentionsDefaults.indemnite_recouvrement_montant;
+  const indemniteMontant = Number.isFinite(Number(rawIndemnite))
+    ? Number(rawIndemnite)
+    : mentionsDefaults.indemnite_recouvrement_montant;
+  const mentions = {
+    conditions_reglement: companySettings?.conditions_reglement
+      || facture.conditions_reglement
+      || mentionsDefaults.conditions_reglement,
+    delai_paiement: companySettings?.delai_paiement
+      || mentionsDefaults.delai_paiement,
+    penalites_retard: companySettings?.penalites_retard
+      || facture.penalites_retard
+      || mentionsDefaults.penalites_retard,
+    indemnite_recouvrement_montant: indemniteMontant,
+    indemnite_recouvrement_texte: companySettings?.indemnite_recouvrement_texte
+      || mentionsDefaults.indemnite_recouvrement_texte,
+    escompte: companySettings?.escompte || facture.escompte || '',
+  };
+  const bankFields = [
+    { label: 'Titulaire', value: companySettings?.titulaire_compte },
+    { label: 'Banque', value: companySettings?.banque_nom },
+    { label: 'Domiciliation', value: companySettings?.domiciliation },
+    { label: 'IBAN', value: facture.profile?.iban },
+    { label: 'BIC', value: facture.profile?.bic },
+    { label: 'RIB', value: companySettings?.rib },
+    { label: 'Reference paiement', value: companySettings?.reference_paiement },
+    { label: 'Modes de paiement', value: companySettings?.modes_paiement_acceptes },
+  ];
+  const hasBank = bankFields.some((field) => field.value);
+  const mentionParts = [
+    `Conditions: ${mentions.conditions_reglement}`,
+    `Delai: ${mentions.delai_paiement}`,
+    `Penalites: ${mentions.penalites_retard}`,
+    `Indemnite: ${mentions.indemnite_recouvrement_montant.toFixed(2)} ${mentions.indemnite_recouvrement_texte}`,
+    mentions.escompte ? `Escompte: ${mentions.escompte}` : '',
+    tvaNonApplicable ? 'TVA non applicable, art. 293B du CGI' : '',
+  ].filter(Boolean);
+  const mentionSummary = mentionParts.join(' | ');
+  const bankSummary = bankFields
+    .filter((field) => field.value)
+    .map((field) => `${field.label}: ${String(field.value)}`)
+    .join(' | ');
+  const footerAddressParts = [
+    facture.profile?.adresse,
+    [facture.profile?.code_postal, facture.profile?.ville].filter(Boolean).join(' ').trim(),
+  ].filter(Boolean);
+  const footerParts = [
+    facture.profile?.raison_sociale,
+    footerAddressParts.length ? footerAddressParts.join(', ') : '',
+    facture.profile?.telephone ? `Tel: ${facture.profile.telephone}` : '',
+    facture.profile?.email_contact ? `Email: ${facture.profile.email_contact}` : '',
+    facture.profile?.siret ? `SIRET: ${facture.profile.siret}` : '',
+    companySettings?.tva_intracommunautaire ? `TVA intracommunautaire: ${companySettings.tva_intracommunautaire}` : '',
+    facture.profile?.code_ape ? `Code APE: ${facture.profile.code_ape}` : '',
+  ].filter(Boolean);
+  const footerText = footerParts.join(' | ');
 
   return (
     <DashboardLayout>
@@ -286,46 +364,34 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex justify-between items-start mb-6">
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Émetteur</h2>
-              {facture.profile && (
-                <div className="flex items-start gap-4">
-                  {facture.profile.logo_url && (
-                    <img
-                      src={facture.profile.logo_url}
-                      alt="Logo de l'entreprise"
-                      className="h-16 w-16 rounded border border-gray-200 bg-white p-1 object-contain"
-                    />
-                  )}
-                  <div className="space-y-1">
-                  {facture.profile.raison_sociale && (
-                    <p className="text-gray-900 font-medium">{facture.profile.raison_sociale}</p>
-                  )}
-                  {facture.profile.nom && facture.profile.prenom && (
-                    <p className="text-gray-900">{facture.profile.prenom} {facture.profile.nom}</p>
-                  )}
-                  {facture.profile.adresse && <p className="text-gray-600">{facture.profile.adresse}</p>}
-                  {(facture.profile.code_postal || facture.profile.ville) && (
-                    <p className="text-gray-600">
-                      {facture.profile.code_postal} {facture.profile.ville}
-                    </p>
-                  )}
-                  {facture.profile.siret && (
-                    <p className="text-gray-600 text-sm">SIRET: {facture.profile.siret}</p>
-                  )}
-                  {facture.profile.email_contact && (
-                    <p className="text-gray-600 text-sm">{facture.profile.email_contact}</p>
-                  )}
-                  {facture.profile.telephone && (
-                    <p className="text-gray-600 text-sm">{facture.profile.telephone}</p>
-                  )}
-                  </div>
-                </div>
+          <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between mb-6">
+            <div className="flex items-start gap-4">
+              {facture.profile?.logo_url && (
+                <img
+                  src={facture.profile.logo_url}
+                  alt="Logo de l'entreprise"
+                  className="h-16 w-16 rounded border border-gray-200 bg-white p-1 object-contain"
+                />
               )}
+              <div className="text-sm text-gray-600">
+                {facture.profile?.raison_sociale && (
+                  <p className="text-gray-900 font-medium">{facture.profile.raison_sociale}</p>
+                )}
+                {facture.profile?.adresse && <p>{facture.profile.adresse}</p>}
+                {(facture.profile?.code_postal || facture.profile?.ville) && (
+                  <p>
+                    {facture.profile?.code_postal} {facture.profile?.ville}
+                  </p>
+                )}
+                {facture.profile?.email_contact && (
+                  <p className="text-gray-600 text-sm">{facture.profile.email_contact}</p>
+                )}
+                {facture.profile?.telephone && (
+                  <p className="text-gray-600 text-sm">{facture.profile.telephone}</p>
+                )}
+              </div>
             </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Client</h2>
+            <div className="w-full md:max-w-sm md:ml-auto border border-gray-200 rounded-lg p-4 text-sm text-gray-700">
               <p className="text-gray-900 font-medium">{facture.client.nom}</p>
               {facture.client.societe && <p className="text-gray-600">{facture.client.societe}</p>}
               {facture.client.adresse && <p className="text-gray-600">{facture.client.adresse}</p>}
@@ -337,16 +403,18 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
               {facture.client.email && <p className="text-gray-600 text-sm">{facture.client.email}</p>}
               {facture.client.telephone && <p className="text-gray-600 text-sm">{facture.client.telephone}</p>}
             </div>
-            <div className="flex-1 text-right">
-              <div className="mb-4">{getStatusBadge(facture.statut)}</div>
+          </div>
+          <div className="flex justify-end mb-6">
+            <div className="text-right text-sm text-gray-600">
+              <div className="mb-2">{getStatusBadge(facture.statut)}</div>
               <div className="space-y-1">
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Date d&apos;émission:</span><br />
+                <p>
+                  <span className="font-medium">Date d&apos;emission:</span><br />
                   {new Date(facture.date_emission).toLocaleDateString('fr-FR')}
                 </p>
                 {facture.date_echeance && (
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Date d&apos;échéance:</span><br />
+                  <p>
+                    <span className="font-medium">Date d&apos;echeance:</span><br />
                     {new Date(facture.date_echeance).toLocaleDateString('fr-FR')}
                   </p>
                 )}
@@ -403,32 +471,10 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
           <div className="border-t mt-6 pt-4">
             <div className="flex justify-between">
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Mentions légales obligatoires</h3>
-                <div className="space-y-2 text-xs text-gray-600">
-                  <div>
-                    <p className="font-medium text-gray-700">Conditions de règlement:</p>
-                    <p>{facture.conditions_reglement || 'Paiement à 30 jours'}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-700">Pénalités de retard:</p>
-                    <p>{facture.penalites_retard || 'Taux BCE + 10 points'}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-700">Indemnité forfaitaire pour frais de recouvrement:</p>
-                    <p>{facture.indemnite_recouvrement?.toFixed(2) || '40.00'} € (article L441-6 du Code de commerce)</p>
-                  </div>
-                  {facture.escompte && (
-                    <div>
-                      <p className="font-medium text-gray-700">Escompte pour paiement anticipé:</p>
-                      <p>{facture.escompte}</p>
-                    </div>
-                  )}
-                  {tvaNonApplicable && (
-                    <p className="mt-2 text-xs">
-                      TVA non applicable, art. 293 B du CGI
-                    </p>
-                  )}
-                </div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Mentions obligatoires</h3>
+                <p className="text-[11px] text-gray-600 leading-4">
+                  {mentionSummary}
+                </p>
               </div>
 
               <div className="w-64 space-y-2">
@@ -463,6 +509,23 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
               </div>
             </div>
           </div>
+
+          {hasBank && (
+            <div className="border-t mt-6 pt-4">
+              <div className="text-xs text-gray-600">
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Informations bancaires</h4>
+                <p className="text-[11px] text-gray-600 leading-4">
+                  {bankSummary}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {footerText && (
+            <div className="border-t mt-6 pt-4 text-[11px] text-gray-500 text-center">
+              {footerText}
+            </div>
+          )}
         </div>
 
         {facture.paiements.length > 0 && (
@@ -602,3 +665,5 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     </DashboardLayout>
   );
 }
+
+

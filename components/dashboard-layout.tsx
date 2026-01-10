@@ -12,6 +12,7 @@ import { ThemeToggle } from './theme-toggle.tsx';
 const navItems = [
   { name: 'Tableau de bord', href: '/dashboard', icon: '📊' },
   { name: 'Mon profil', href: '/profil', icon: '👤' },
+  { name: 'Parametres', href: '/parametres', icon: '[]' },
   { name: 'Clients', href: '/clients', icon: '👥' },
   { name: 'Produits', href: '/produits', icon: '📦' },
   { name: 'Fournisseurs', href: '/fournisseurs', icon: '🏭' },
@@ -195,3 +196,4 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+

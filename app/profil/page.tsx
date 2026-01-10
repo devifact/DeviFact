@@ -37,15 +37,11 @@ export default function ProfilPage() {
     ville: '',
     departement: '',
     pays: 'France',
+    code_ape: '',
     siret: '',
-    tva_applicable: true,
-    taux_tva: 20,
-    marge_defaut: 0,
     email_contact: '',
     telephone: '',
     logo_url: '',
-    iban: '',
-    bic: '',
   });
 
   useEffect(() => {
@@ -55,10 +51,6 @@ export default function ProfilPage() {
     }
 
     if (profile) {
-      const defaultTvaRate = typeof profile.taux_tva === 'number'
-        ? profile.taux_tva
-        : (profile.tva_applicable === false ? 0 : 20);
-
       setFormData({
         raison_sociale: profile.raison_sociale || '',
         nom: profile.nom || '',
@@ -68,15 +60,11 @@ export default function ProfilPage() {
         ville: profile.ville || '',
         departement: profile.departement || '',
         pays: profile.pays || 'France',
+        code_ape: profile.code_ape || '',
         siret: sanitizeDigits(profile.siret || '', 14),
-        tva_applicable: defaultTvaRate !== 0,
-        taux_tva: defaultTvaRate,
-        marge_defaut: typeof profile.marge_defaut === 'number' ? profile.marge_defaut : 0,
         email_contact: profile.email_contact || '',
         telephone: profile.telephone || '',
         logo_url: profile.logo_url || '',
-        iban: profile.iban || '',
-        bic: profile.bic || '',
       });
     }
   }, [profile, user, authLoading, router]);
@@ -104,13 +92,6 @@ export default function ProfilPage() {
     setSaving(true);
 
     try {
-      const normalizedTvaRate = Number.isFinite(formData.taux_tva)
-        ? formData.taux_tva
-        : 20;
-      const normalizedMarge = Number.isFinite(formData.marge_defaut)
-        ? formData.marge_defaut
-        : 0;
-      const tvaApplicable = normalizedTvaRate !== 0;
       const siretValue = sanitizeDigits(formData.siret, 14);
       const siretValid = siretValue.length === 14 && isValidSiret(siretValue);
       if (!siretValid) {
@@ -137,11 +118,19 @@ export default function ProfilPage() {
         phoneVerified;
 
       await updateProfile({
-        ...formData,
+        raison_sociale: formData.raison_sociale,
+        nom: formData.nom,
+        prenom: formData.prenom,
+        adresse: formData.adresse,
+        code_postal: formData.code_postal,
+        ville: formData.ville,
+        departement: formData.departement || null,
+        pays: formData.pays,
+        code_ape: formData.code_ape || null,
+        siret: siretValue,
+        email_contact: formData.email_contact,
         telephone: normalizedPhone,
-        taux_tva: normalizedTvaRate,
-        marge_defaut: normalizedMarge,
-        tva_applicable: tvaApplicable,
+        logo_url: formData.logo_url || null,
         profil_complete: isComplete,
       });
 
@@ -382,9 +371,6 @@ export default function ProfilPage() {
     return `${baseClasses} border-green-300 bg-green-50`;
   };
 
-  const tvaOptions = [0, 5.5, 10, 20];
-  const tvaNonApplicable = formData.taux_tva === 0;
-
   return (
     <DashboardLayout>
       <div>
@@ -529,6 +515,36 @@ export default function ProfilPage() {
             </div>
 
             <div>
+              <label htmlFor="code_ape" className="block text-sm font-medium text-gray-700 mb-1">
+                Code APE
+              </label>
+              <input
+                id="code_ape"
+                type="text"
+                value={formData.code_ape}
+                onChange={(e) => setFormData({ ...formData, code_ape: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="email_contact"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Email contact *
+              </label>
+              <input
+                id="email_contact"
+                type="email"
+                value={formData.email_contact}
+                onChange={(e) => setFormData({ ...formData, email_contact: e.target.value })}
+                required
+                className={getFieldClassName(formData.email_contact)}
+              />
+            </div>
+
+            <div>
               <label htmlFor="siret" className="block text-sm font-medium text-gray-700 mb-1">
                 SIRET *
               </label>
@@ -556,23 +572,6 @@ export default function ProfilPage() {
                   </div>
                 )}
               </div>
-            </div>
-
-            <div>
-              <label
-                htmlFor="email_contact"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Email contact *
-              </label>
-              <input
-                id="email_contact"
-                type="email"
-                value={formData.email_contact}
-                onChange={(e) => setFormData({ ...formData, email_contact: e.target.value })}
-                required
-                className={getFieldClassName(formData.email_contact)}
-              />
             </div>
 
             <div>
@@ -620,59 +619,7 @@ export default function ProfilPage() {
               )}
             </div>
 
-            <div>
-              <label htmlFor="taux_tva" className="block text-sm font-medium text-gray-700 mb-1">
-                Regime de TVA (taux par defaut)
-              </label>
-              <select
-                id="taux_tva"
-                value={String(formData.taux_tva)}
-                onChange={(e) => {
-                  const rate = parseFloat(e.target.value);
-                  setFormData({
-                    ...formData,
-                    taux_tva: rate,
-                    tva_applicable: rate !== 0,
-                  });
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {tvaOptions.map((rate) => (
-                  <option key={rate} value={rate}>
-                    {rate} %
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Ce taux est applique par defaut. Vous pourrez le modifier ligne par ligne.
-              </p>
-              {tvaNonApplicable && (
-                <p className="mt-1 text-xs text-orange-600">
-                  TVA non applicable, art. 293B du CGI
-                </p>
-              )}
-            </div>
 
-            <div>
-              <label htmlFor="marge_defaut" className="block text-sm font-medium text-gray-700 mb-1">
-                Marge par defaut (%)
-              </label>
-              <input
-                id="marge_defaut"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={formData.marge_defaut}
-                onChange={(e) =>
-                  setFormData({ ...formData, marge_defaut: parseFloat(e.target.value) || 0 })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Utilisee pour pre-remplir la marge des lignes de devis.
-              </p>
-            </div>
 
             <div className="md:col-span-2">
               <label htmlFor="logo_url" className="block text-sm font-medium text-gray-700 mb-1">
@@ -726,31 +673,6 @@ export default function ProfilPage() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="iban" className="block text-sm font-medium text-gray-700 mb-1">
-                IBAN (optionnel)
-              </label>
-              <input
-                id="iban"
-                type="text"
-                value={formData.iban}
-                onChange={(e) => setFormData({ ...formData, iban: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="bic" className="block text-sm font-medium text-gray-700 mb-1">
-                BIC (optionnel)
-              </label>
-              <input
-                id="bic"
-                type="text"
-                value={formData.bic}
-                onChange={(e) => setFormData({ ...formData, bic: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
           </div>
 
           <div className="flex justify-end">

@@ -21,6 +21,7 @@ export interface Database {
           departement: string | null
           pays: string | null
           siret: string | null
+          code_ape: string | null
           tva_applicable: boolean | null
           taux_tva: number | null
           marge_defaut: number | null
@@ -51,6 +52,7 @@ export interface Database {
           departement?: string | null
           pays?: string | null
           siret?: string | null
+          code_ape?: string | null
           tva_applicable?: boolean | null
           taux_tva?: number | null
           marge_defaut?: number | null
@@ -81,6 +83,7 @@ export interface Database {
           departement?: string | null
           pays?: string | null
           siret?: string | null
+          code_ape?: string | null
           tva_applicable?: boolean | null
           taux_tva?: number | null
           marge_defaut?: number | null
@@ -97,6 +100,68 @@ export interface Database {
           iban?: string | null
           bic?: string | null
           profil_complete?: boolean | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      company_settings: {
+        Row: {
+          user_id: string
+          conditions_reglement: string | null
+          delai_paiement: string | null
+          penalites_retard: string | null
+          indemnite_recouvrement_montant: number | null
+          indemnite_recouvrement_texte: string | null
+          escompte: string | null
+          titulaire_compte: string | null
+          banque_nom: string | null
+          domiciliation: string | null
+          modes_paiement_acceptes: string | null
+          reference_paiement: string | null
+          rib: string | null
+          taux_tva_defaut: number | null
+          marge_defaut: number | null
+          tva_intracommunautaire: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          conditions_reglement?: string | null
+          delai_paiement?: string | null
+          penalites_retard?: string | null
+          indemnite_recouvrement_montant?: number | null
+          indemnite_recouvrement_texte?: string | null
+          escompte?: string | null
+          titulaire_compte?: string | null
+          banque_nom?: string | null
+          domiciliation?: string | null
+          modes_paiement_acceptes?: string | null
+          reference_paiement?: string | null
+          rib?: string | null
+          taux_tva_defaut?: number | null
+          marge_defaut?: number | null
+          tva_intracommunautaire?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          conditions_reglement?: string | null
+          delai_paiement?: string | null
+          penalites_retard?: string | null
+          indemnite_recouvrement_montant?: number | null
+          indemnite_recouvrement_texte?: string | null
+          escompte?: string | null
+          titulaire_compte?: string | null
+          banque_nom?: string | null
+          domiciliation?: string | null
+          modes_paiement_acceptes?: string | null
+          reference_paiement?: string | null
+          rib?: string | null
+          taux_tva_defaut?: number | null
+          marge_defaut?: number | null
+          tva_intracommunautaire?: string | null
           created_at?: string
           updated_at?: string
         }

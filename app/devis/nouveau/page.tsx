@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
+import { useCompanySettings } from '@/lib/hooks/use-company-settings.ts';
 import { usePremium } from '@/lib/hooks/use-premium.ts';
 import { supabase } from '@/lib/supabase.ts';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -56,6 +57,7 @@ const formatDateValue = (value: string | null) => {
 export default function NouveauDevisPage() {
   const { user, loading: authLoading } = useAuth();
   const { profile, loading: profileLoading, refetchProfile } = useProfile();
+  const { settings } = useCompanySettings();
   const { isPremium } = usePremium();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,12 +87,14 @@ export default function NouveauDevisPage() {
     }
   ]);
   const tvaOptions = [0, 5.5, 10, 20];
-  const defaultTvaRate = typeof profile?.taux_tva === 'number'
-    ? profile.taux_tva
-    : (profile?.tva_applicable === false ? 0 : 20);
-  const defaultMarge = typeof profile?.marge_defaut === 'number'
-    ? profile.marge_defaut
-    : 0;
+  const defaultTvaRate = typeof settings?.taux_tva_defaut === 'number'
+    ? settings.taux_tva_defaut
+    : (typeof profile?.taux_tva === 'number'
+      ? profile.taux_tva
+      : (profile?.tva_applicable === false ? 0 : 20));
+  const defaultMarge = typeof settings?.marge_defaut === 'number'
+    ? settings.marge_defaut
+    : (typeof profile?.marge_defaut === 'number' ? profile.marge_defaut : 0);
   const tvaNonApplicable = defaultTvaRate === 0;
   const unitOptions = ['unite', 'h', 'jour', 'm2', 'm3', 'ml', 'kg', 'lot'];
   const lineGridClass = isPremium
@@ -117,7 +121,7 @@ export default function NouveauDevisPage() {
           : { ...ligne, taux_tva: defaultTvaRate, marge_pourcentage: defaultMarge }
       )
     );
-  }, [profile, defaultTvaRate, defaultMarge]);
+  }, [profile, defaultTvaRate, defaultMarge, settings]);
 
   const fetchClients = useCallback(async () => {
     if (!user) return;

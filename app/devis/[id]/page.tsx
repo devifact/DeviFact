@@ -14,6 +14,7 @@ type Devis = Database['public']['Tables']['devis']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
 type LigneDevis = Database['public']['Tables']['lignes_devis']['Row'];
 type Profile = Database['public']['Tables']['profiles']['Row'];
+type CompanySettings = Database['public']['Tables']['company_settings']['Row'];
 
 export default function DevisDetailPage() {
   const { user, loading: authLoading } = useAuth();
@@ -26,6 +27,7 @@ export default function DevisDetailPage() {
   const [client, setClient] = useState<Client | null>(null);
   const [lignes, setLignes] = useState<LigneDevis[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -40,7 +42,7 @@ export default function DevisDetailPage() {
     try {
       setLoading(true);
 
-      const [devisResult, profileResult, factureResult] = await Promise.all([
+      const [devisResult, profileResult, settingsResult, factureResult] = await Promise.all([
         supabase
           .from('devis')
           .select('*')
@@ -53,6 +55,11 @@ export default function DevisDetailPage() {
           .eq('id', user.id)
           .maybeSingle(),
         supabase
+          .from('company_settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
           .from('factures')
           .select('id')
           .eq('devis_id', devisId)
@@ -63,6 +70,7 @@ export default function DevisDetailPage() {
 
       if (devisResult.error) throw devisResult.error;
       if (profileResult.error) throw profileResult.error;
+      if (settingsResult.error) throw settingsResult.error;
       if (factureResult.error) throw factureResult.error;
 
       if (!devisResult.data) {
@@ -73,6 +81,7 @@ export default function DevisDetailPage() {
 
       setDevis(devisResult.data);
       setProfile(profileResult.data);
+      setCompanySettings(settingsResult.data);
       setHasInvoice(Boolean(factureResult.data));
 
       const [clientResult, lignesResult] = await Promise.all([
@@ -336,10 +345,75 @@ export default function DevisDetailPage() {
     return null;
   }
 
-  const defaultTvaRate = typeof profile.taux_tva === 'number'
-    ? profile.taux_tva
-    : (profile.tva_applicable === false ? 0 : 20);
+  const defaultTvaRate = typeof companySettings?.taux_tva_defaut === 'number'
+    ? companySettings.taux_tva_defaut
+    : (typeof profile.taux_tva === 'number'
+      ? profile.taux_tva
+      : (profile.tva_applicable === false ? 0 : 20));
   const tvaNonApplicable = defaultTvaRate === 0;
+  const mentionsDefaults = {
+    conditions_reglement: 'Paiement a 30 jours',
+    delai_paiement: 'Paiement a 30 jours',
+    penalites_retard: 'Taux BCE + 10 points',
+    indemnite_recouvrement_montant: 40,
+    indemnite_recouvrement_texte: 'EUR (article L441-6 du Code de commerce)',
+  };
+  const rawIndemnite = companySettings?.indemnite_recouvrement_montant;
+  const indemniteMontant = Number.isFinite(Number(rawIndemnite))
+    ? Number(rawIndemnite)
+    : mentionsDefaults.indemnite_recouvrement_montant;
+  const mentions = {
+    conditions_reglement: companySettings?.conditions_reglement || mentionsDefaults.conditions_reglement,
+    delai_paiement: companySettings?.delai_paiement || mentionsDefaults.delai_paiement,
+    penalites_retard: companySettings?.penalites_retard || mentionsDefaults.penalites_retard,
+    indemnite_recouvrement_montant: indemniteMontant,
+    indemnite_recouvrement_texte: companySettings?.indemnite_recouvrement_texte
+      || mentionsDefaults.indemnite_recouvrement_texte,
+    escompte: companySettings?.escompte || '',
+  };
+  const bankFields = [
+    { label: 'Titulaire', value: companySettings?.titulaire_compte },
+    { label: 'Banque', value: companySettings?.banque_nom },
+    { label: 'Domiciliation', value: companySettings?.domiciliation },
+    { label: 'IBAN', value: profile.iban },
+    { label: 'BIC', value: profile.bic },
+    { label: 'RIB', value: companySettings?.rib },
+    { label: 'Reference paiement', value: companySettings?.reference_paiement },
+    { label: 'Modes de paiement', value: companySettings?.modes_paiement_acceptes },
+  ];
+  const hasLegal = Boolean(mentions.conditions_reglement
+    || mentions.delai_paiement
+    || mentions.penalites_retard
+    || mentions.indemnite_recouvrement_texte
+    || mentions.escompte);
+  const hasBank = bankFields.some((field) => field.value);
+  const mentionParts = [
+    `Conditions: ${mentions.conditions_reglement}`,
+    `Delai: ${mentions.delai_paiement}`,
+    `Penalites: ${mentions.penalites_retard}`,
+    `Indemnite: ${mentions.indemnite_recouvrement_montant.toFixed(2)} ${mentions.indemnite_recouvrement_texte}`,
+    mentions.escompte ? `Escompte: ${mentions.escompte}` : '',
+    tvaNonApplicable ? 'TVA non applicable, art. 293B du CGI' : '',
+  ].filter(Boolean);
+  const mentionSummary = mentionParts.join(' | ');
+  const bankSummary = bankFields
+    .filter((field) => field.value)
+    .map((field) => `${field.label}: ${String(field.value)}`)
+    .join(' | ');
+  const footerAddressParts = [
+    profile.adresse,
+    [profile.code_postal, profile.ville].filter(Boolean).join(' ').trim(),
+  ].filter(Boolean);
+  const footerParts = [
+    profile.raison_sociale,
+    footerAddressParts.length ? footerAddressParts.join(', ') : '',
+    profile.telephone ? `Tel: ${profile.telephone}` : '',
+    profile.email_contact ? `Email: ${profile.email_contact}` : '',
+    profile.siret ? `SIRET: ${profile.siret}` : '',
+    companySettings?.tva_intracommunautaire ? `TVA intracommunautaire: ${companySettings.tva_intracommunautaire}` : '',
+    profile.code_ape ? `Code APE: ${profile.code_ape}` : '',
+  ].filter(Boolean);
+  const footerText = footerParts.join(' | ');
 
   return (
     <DashboardLayout>
@@ -398,7 +472,7 @@ export default function DevisDetailPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-8 print-area">
           <div className="border-b-2 border-blue-600 pb-6 mb-6">
-            <div className="flex justify-between">
+            <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
               <div className="flex items-start gap-4">
                 {profile.logo_url && (
                   <img
@@ -407,81 +481,71 @@ export default function DevisDetailPage() {
                     className="h-16 w-16 rounded border border-gray-200 bg-white p-1 object-contain"
                   />
                 )}
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">
+                <div className="text-sm text-gray-600">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
                     {profile.raison_sociale}
                   </h2>
-                  <p className="text-gray-600">{profile.adresse}</p>
-                  <p className="text-gray-600">
+                  <p>{profile.adresse}</p>
+                  <p>
                     {profile.code_postal} {profile.ville}
                   </p>
-                  <p className="text-gray-600">{profile.pays || 'France'}</p>
+                  <p>{profile.pays || 'France'}</p>
+                  <div className="mt-2 space-y-1">
+                    <p>
+                      <span className="font-medium">Telephone:</span> {profile.telephone}
+                    </p>
+                    <p>
+                      <span className="font-medium">Email:</span> {profile.email_contact}
+                    </p>
+                    {tvaNonApplicable && (
+                      <p>TVA non applicable, art. 293B du CGI</p>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="w-full md:max-w-sm md:ml-auto border border-gray-200 rounded-lg p-4 text-sm text-gray-700">
+                <p className="font-medium text-gray-900">{client.nom}</p>
+                {client.societe && <p className="text-gray-600">{client.societe}</p>}
+                <p className="text-gray-600">{client.adresse}</p>
                 <p className="text-gray-600">
-                  <span className="font-medium">Téléphone:</span> {profile.telephone}
+                  {client.code_postal} {client.ville}
+                </p>
+                <p className="text-gray-600 mt-2">
+                  <span className="font-medium">Email:</span> {client.email}
                 </p>
                 <p className="text-gray-600">
-                  <span className="font-medium">Email:</span> {profile.email_contact}
+                  <span className="font-medium">Telephone:</span> {client.telephone}
                 </p>
-                <p className="text-gray-600">
-                  <span className="font-medium">SIRET:</span> {profile.siret}
-                </p>
-                <p className="text-gray-600">
-                  <span className="font-medium">Regime TVA:</span> {defaultTvaRate}%
-                </p>
-                {tvaNonApplicable && (
-                  <p className="text-gray-600">TVA non applicable, art. 293B du CGI</p>
-                )}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 mb-8">
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-blue-600 mb-3">Client</h3>
-              <p className="font-medium text-gray-900">{client.nom}</p>
-              {client.societe && <p className="text-gray-600">{client.societe}</p>}
-              <p className="text-gray-600">{client.adresse}</p>
+          <div className="border border-gray-200 rounded-lg p-4 mb-8">
+            <h3 className="text-lg font-semibold text-blue-600 mb-3">Informations</h3>
+            <p className="text-gray-600">
+              <span className="font-medium">Date d&apos;emission:</span>{' '}
+              {new Date(devis.date_creation).toLocaleDateString('fr-FR')}
+            </p>
+            {devis.date_validite && (
               <p className="text-gray-600">
-                {client.code_postal} {client.ville}
+                <span className="font-medium">Date de validite:</span>{' '}
+                {new Date(devis.date_validite).toLocaleDateString('fr-FR')}
               </p>
-              <p className="text-gray-600 mt-2">
-                <span className="font-medium">Email:</span> {client.email}
-              </p>
-              <p className="text-gray-600">
-                <span className="font-medium">Téléphone:</span> {client.telephone}
-              </p>
-            </div>
-
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="text-lg font-semibold text-blue-600 mb-3">Informations</h3>
-              <p className="text-gray-600">
-                <span className="font-medium">Date d&apos;émission:</span>{' '}
-                {new Date(devis.date_creation).toLocaleDateString('fr-FR')}
-              </p>
-              {devis.date_validite && (
-                <p className="text-gray-600">
-                  <span className="font-medium">Date de validité:</span>{' '}
-                  {new Date(devis.date_validite).toLocaleDateString('fr-FR')}
-                </p>
-              )}
-              <div className="text-gray-600 mt-2 print-hide">
-                <label htmlFor="devis-statut" className="font-medium mr-2">Statut:</label>
-                <select
-                  id="devis-statut"
-                  value={devis.statut}
-                  onChange={(e) => handleUpdateStatus(e.target.value as Devis['statut'])}
-                  disabled={statusUpdating}
-                  className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  <option value="brouillon">Brouillon</option>
-                  <option value="envoye">Envoye</option>
-                  <option value="accepte">Accepte</option>
-                  <option value="refuse">Refuse</option>
-                </select>
-              </div>
+            )}
+            <div className="text-gray-600 mt-2 print-hide">
+              <label htmlFor="devis-statut" className="font-medium mr-2">Statut:</label>
+              <select
+                id="devis-statut"
+                value={devis.statut}
+                onChange={(e) => handleUpdateStatus(e.target.value as Devis['statut'])}
+                disabled={statusUpdating}
+                className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                <option value="brouillon">Brouillon</option>
+                <option value="envoye">Envoye</option>
+                <option value="accepte">Accepte</option>
+                <option value="refuse">Refuse</option>
+              </select>
             </div>
           </div>
 
@@ -580,6 +644,37 @@ export default function DevisDetailPage() {
               <p className="text-gray-600">{devis.notes}</p>
             </div>
           )}
+
+          {(hasLegal || hasBank) && (
+            <div className="mt-8 border-t pt-6">
+              <div className="grid gap-6 md:grid-cols-2 text-xs text-gray-600">
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Mentions obligatoires</h4>
+                  <p className="text-[11px] text-gray-600 leading-4">
+                    {mentionSummary}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Informations bancaires</h4>
+                  {hasBank ? (
+                    <p className="text-[11px] text-gray-600 leading-4">
+                      {bankSummary}
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-gray-600 leading-4">
+                      Aucune information bancaire renseignee.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {footerText && (
+            <div className="mt-6 border-t pt-4 text-[11px] text-gray-500 text-center">
+              {footerText}
+            </div>
+          )}
         </div>
       </div>
       <style jsx global>{`
@@ -626,3 +721,4 @@ export default function DevisDetailPage() {
     </DashboardLayout>
   );
 }
+
