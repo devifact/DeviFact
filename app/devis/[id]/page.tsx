@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase.ts';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
+import { resolveDocumentColor } from '@/lib/document-colors.ts';
+import { buildDocumentFooter } from '@/lib/document-footer.ts';
 
 type Devis = Database['public']['Tables']['devis']['Row'];
 type Client = Database['public']['Tables']['clients']['Row'];
@@ -351,26 +353,6 @@ export default function DevisDetailPage() {
       ? profile.taux_tva
       : (profile.tva_applicable === false ? 0 : 20));
   const tvaNonApplicable = defaultTvaRate === 0;
-  const mentionsDefaults = {
-    conditions_reglement: 'Paiement a 30 jours',
-    delai_paiement: 'Paiement a 30 jours',
-    penalites_retard: 'Taux BCE + 10 points',
-    indemnite_recouvrement_montant: 40,
-    indemnite_recouvrement_texte: 'EUR (article L441-6 du Code de commerce)',
-  };
-  const rawIndemnite = companySettings?.indemnite_recouvrement_montant;
-  const indemniteMontant = Number.isFinite(Number(rawIndemnite))
-    ? Number(rawIndemnite)
-    : mentionsDefaults.indemnite_recouvrement_montant;
-  const mentions = {
-    conditions_reglement: companySettings?.conditions_reglement || mentionsDefaults.conditions_reglement,
-    delai_paiement: companySettings?.delai_paiement || mentionsDefaults.delai_paiement,
-    penalites_retard: companySettings?.penalites_retard || mentionsDefaults.penalites_retard,
-    indemnite_recouvrement_montant: indemniteMontant,
-    indemnite_recouvrement_texte: companySettings?.indemnite_recouvrement_texte
-      || mentionsDefaults.indemnite_recouvrement_texte,
-    escompte: companySettings?.escompte || '',
-  };
   const bankFields = [
     { label: 'Titulaire', value: companySettings?.titulaire_compte },
     { label: 'Banque', value: companySettings?.banque_nom },
@@ -381,39 +363,13 @@ export default function DevisDetailPage() {
     { label: 'Reference paiement', value: companySettings?.reference_paiement },
     { label: 'Modes de paiement', value: companySettings?.modes_paiement_acceptes },
   ];
-  const hasLegal = Boolean(mentions.conditions_reglement
-    || mentions.delai_paiement
-    || mentions.penalites_retard
-    || mentions.indemnite_recouvrement_texte
-    || mentions.escompte);
   const hasBank = bankFields.some((field) => field.value);
-  const mentionParts = [
-    `Conditions: ${mentions.conditions_reglement}`,
-    `Delai: ${mentions.delai_paiement}`,
-    `Penalites: ${mentions.penalites_retard}`,
-    `Indemnite: ${mentions.indemnite_recouvrement_montant.toFixed(2)} ${mentions.indemnite_recouvrement_texte}`,
-    mentions.escompte ? `Escompte: ${mentions.escompte}` : '',
-    tvaNonApplicable ? 'TVA non applicable, art. 293B du CGI' : '',
-  ].filter(Boolean);
-  const mentionSummary = mentionParts.join(' | ');
   const bankSummary = bankFields
     .filter((field) => field.value)
     .map((field) => `${field.label}: ${String(field.value)}`)
     .join(' | ');
-  const footerAddressParts = [
-    profile.adresse,
-    [profile.code_postal, profile.ville].filter(Boolean).join(' ').trim(),
-  ].filter(Boolean);
-  const footerParts = [
-    profile.raison_sociale,
-    footerAddressParts.length ? footerAddressParts.join(', ') : '',
-    profile.telephone ? `Tel: ${profile.telephone}` : '',
-    profile.email_contact ? `Email: ${profile.email_contact}` : '',
-    profile.siret ? `SIRET: ${profile.siret}` : '',
-    companySettings?.tva_intracommunautaire ? `TVA intracommunautaire: ${companySettings.tva_intracommunautaire}` : '',
-    profile.code_ape ? `Code APE: ${profile.code_ape}` : '',
-  ].filter(Boolean);
-  const footerText = footerParts.join(' | ');
+  const documentColor = resolveDocumentColor(companySettings?.couleur_documents);
+  const footerText = buildDocumentFooter(profile, companySettings);
 
   return (
     <DashboardLayout>
@@ -471,7 +427,7 @@ export default function DevisDetailPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-8 print-area">
-          <div className="border-b-2 border-blue-600 pb-6 mb-6">
+          <div className="border-b-2 pb-6 mb-6" style={{ borderColor: documentColor }}>
             <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
               <div className="flex items-start gap-4">
                 {profile.logo_url && (
@@ -521,39 +477,51 @@ export default function DevisDetailPage() {
           </div>
 
           <div className="border border-gray-200 rounded-lg p-4 mb-8">
-            <h3 className="text-lg font-semibold text-blue-600 mb-3">Informations</h3>
-            <p className="text-gray-600">
-              <span className="font-medium">Date d&apos;emission:</span>{' '}
-              {new Date(devis.date_creation).toLocaleDateString('fr-FR')}
-            </p>
-            {devis.date_validite && (
-              <p className="text-gray-600">
-                <span className="font-medium">Date de validite:</span>{' '}
-                {new Date(devis.date_validite).toLocaleDateString('fr-FR')}
-              </p>
-            )}
-            <div className="text-gray-600 mt-2 print-hide">
-              <label htmlFor="devis-statut" className="font-medium mr-2">Statut:</label>
-              <select
-                id="devis-statut"
-                value={devis.statut}
-                onChange={(e) => handleUpdateStatus(e.target.value as Devis['statut'])}
-                disabled={statusUpdating}
-                className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                <option value="brouillon">Brouillon</option>
-                <option value="envoye">Envoye</option>
-                <option value="accepte">Accepte</option>
-                <option value="refuse">Refuse</option>
-              </select>
+            <h3 className="text-lg font-semibold mb-3" style={{ color: documentColor }}>Informations</h3>
+            <div className="grid gap-4 md:grid-cols-[1.6fr_1fr]">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Informations sur les travaux / services
+                </p>
+                <p className="text-sm text-gray-600">
+                  {devis.informations_travaux || 'Aucune information renseignee.'}
+                </p>
+              </div>
+              <div className="text-sm text-gray-600 md:text-right">
+                <p>
+                  <span className="font-medium">Date du devis:</span><br />
+                  {new Date(devis.date_creation).toLocaleDateString('fr-FR')}
+                </p>
+                {devis.date_validite && (
+                  <p className="mt-2">
+                    <span className="font-medium">Date de validite:</span><br />
+                    {new Date(devis.date_validite).toLocaleDateString('fr-FR')}
+                  </p>
+                )}
+                <div className="mt-3 print-hide md:flex md:justify-end md:items-center">
+                  <label htmlFor="devis-statut" className="font-medium mr-2">Statut:</label>
+                  <select
+                    id="devis-statut"
+                    value={devis.statut}
+                    onChange={(e) => handleUpdateStatus(e.target.value as Devis['statut'])}
+                    disabled={statusUpdating}
+                    className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    <option value="brouillon">Brouillon</option>
+                    <option value="envoye">Envoye</option>
+                    <option value="accepte">Accepte</option>
+                    <option value="refuse">Refuse</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Lignes du devis</h3>
+            <h3 className="text-lg font-semibold mb-4" style={{ color: documentColor }}>Lignes du devis</h3>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
-                <thead className="bg-blue-600">
+                <thead style={{ backgroundColor: documentColor }}>
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-white">
                       Désignation
@@ -589,14 +557,12 @@ export default function DevisDetailPage() {
                           {ligne.quantite}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {Number(ligne.prix_unitaire_ht).toFixed(2)} €
-                        </td>
+                          {Number(ligne.prix_unitaire_ht).toFixed(2)}&nbsp;&euro;</td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {ligne.taux_tva}%
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 text-right">
-                          {Number(ligne.total_ligne_ht).toFixed(2)} €
-                        </td>
+                          {Number(ligne.total_ligne_ht).toFixed(2)}&nbsp;&euro;</td>
                       </tr>
                     ))
                   )}
@@ -605,76 +571,72 @@ export default function DevisDetailPage() {
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <div className="w-80">
-              <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
-                <tbody className="bg-white divide-y divide-gray-200">
-                  <tr>
-                    <td className="px-4 py-2 text-sm font-medium text-gray-900">
-                      Total HT
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900 text-right">
-                      {Number(devis.total_ht).toFixed(2)} €
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-2 text-sm font-medium text-gray-900">
-                      Total TVA
-                    </td>
-                    <td className="px-4 py-2 text-sm text-gray-900 text-right">
-                      {Number(devis.total_tva).toFixed(2)} €
-                    </td>
-                  </tr>
-                  <tr className="bg-blue-600">
-                    <td className="px-4 py-3 text-base font-bold text-white">
-                      Total TTC
-                    </td>
-                    <td className="px-4 py-3 text-base font-bold text-white text-right">
-                      {Number(devis.total_ttc).toFixed(2)} €
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+          <div className="border-t mt-6 pt-4">
+            <div className="flex flex-col gap-6 md:flex-row md:justify-between">
+              <div className="md:max-w-xl">
+                <h3 className="text-sm font-semibold mb-2" style={{ color: documentColor }}>Acceptation du devis</h3>
+                <p className="text-[11px] text-gray-600 leading-4">
+                  Bon pour accord. Le present devis vaut engagement apres acceptation par le client.
+                  Un acompte de 30 % du montant total TTC est demande a la signature du devis.
+                </p>
+              </div>
+              <div className="w-full md:w-80">
+                <table className="min-w-full divide-y divide-gray-200 border border-gray-200">
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    <tr>
+                      <td className="px-4 py-2 text-sm font-medium whitespace-nowrap" style={{ color: documentColor }}>
+                        Total HT
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right whitespace-nowrap">
+                        {Number(devis.total_ht).toFixed(2)}&nbsp;&euro;</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-2 text-sm font-medium whitespace-nowrap" style={{ color: documentColor }}>
+                        Total TVA
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right whitespace-nowrap">
+                        {Number(devis.total_tva).toFixed(2)}&nbsp;&euro;</td>
+                    </tr>
+                    <tr style={{ backgroundColor: documentColor }}>
+                      <td className="px-4 py-3 text-base font-bold text-white whitespace-nowrap">
+                        Total TTC
+                      </td>
+                      <td className="px-4 py-3 text-base font-bold text-white text-right whitespace-nowrap">
+                        {Number(devis.total_ttc).toFixed(2)}&nbsp;&euro;</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
+
           {devis.notes && (
-            <div className="mt-8 p-4 bg-gray-50 border-l-4 border-blue-600 rounded">
+            <div className="mt-8 p-4 bg-gray-50 border-l-4 rounded" style={{ borderColor: documentColor }}>
               <h3 className="font-semibold text-gray-900 mb-2">Notes</h3>
               <p className="text-gray-600">{devis.notes}</p>
             </div>
           )}
 
-          {(hasLegal || hasBank) && (
-            <div className="mt-8 border-t pt-6">
-              <div className="grid gap-6 md:grid-cols-2 text-xs text-gray-600">
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Mentions obligatoires</h4>
-                  <p className="text-[11px] text-gray-600 leading-4">
-                    {mentionSummary}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Informations bancaires</h4>
-                  {hasBank ? (
-                    <p className="text-[11px] text-gray-600 leading-4">
-                      {bankSummary}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-gray-600 leading-4">
-                      Aucune information bancaire renseignee.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="mt-8 border-t pt-6">
+            <h4 className="text-sm font-semibold mb-2" style={{ color: documentColor }}>Informations bancaires</h4>
+            {hasBank ? (
+              <p className="text-[11px] text-gray-600 leading-4">
+                {bankSummary}
+              </p>
+            ) : (
+              <p className="text-[11px] text-gray-600 leading-4">
+                Aucune information bancaire renseignee.
+              </p>
+            )}
+          </div>
 
           {footerText && (
-            <div className="mt-6 border-t pt-4 text-[11px] text-gray-500 text-center">
+            <div className="border-t mt-6 pt-4 text-[11px] text-gray-500 text-center">
               {footerText}
             </div>
           )}
+
         </div>
       </div>
       <style jsx global>{`

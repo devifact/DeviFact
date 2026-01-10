@@ -5,6 +5,11 @@ import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
 import { useProfile } from '@/lib/hooks/use-profile.ts';
 import { useCompanySettings } from '@/lib/hooks/use-company-settings.ts';
+import {
+  DEFAULT_DOCUMENT_COLOR,
+  DOCUMENT_COLOR_OPTIONS,
+  resolveDocumentColor,
+} from '@/lib/document-colors.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
@@ -25,6 +30,7 @@ export default function ParametresPage() {
   const [savingLegal, setSavingLegal] = useState(false);
   const [savingBank, setSavingBank] = useState(false);
   const [savingDefaults, setSavingDefaults] = useState(false);
+  const [savingAppearance, setSavingAppearance] = useState(false);
 
   const [legalForm, setLegalForm] = useState({
     conditions_reglement: defaultMentions.conditions_reglement,
@@ -50,6 +56,10 @@ export default function ParametresPage() {
     taux_tva_defaut: 20,
     marge_defaut: 0,
     tva_intracommunautaire: '',
+  });
+
+  const [appearanceForm, setAppearanceForm] = useState({
+    couleur_documents: DEFAULT_DOCUMENT_COLOR,
   });
 
   const tvaOptions = [0, 5.5, 10, 20];
@@ -106,6 +116,12 @@ export default function ParametresPage() {
       tva_intracommunautaire: settings?.tva_intracommunautaire || '',
     });
   }, [profile, settings]);
+
+  useEffect(() => {
+    setAppearanceForm({
+      couleur_documents: resolveDocumentColor(settings?.couleur_documents),
+    });
+  }, [settings]);
 
   const handleSaveLegal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,6 +201,24 @@ export default function ParametresPage() {
       toast.error(message);
     } finally {
       setSavingDefaults(false);
+    }
+  };
+
+  const handleSaveAppearance = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setSavingAppearance(true);
+      await updateSettings({
+        couleur_documents: appearanceForm.couleur_documents,
+      });
+      toast.success('Couleur enregistree');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement';
+      toast.error(message);
+    } finally {
+      setSavingAppearance(false);
     }
   };
 
@@ -396,6 +430,61 @@ export default function ParametresPage() {
                   className="px-4 py-2 rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {savingDefaults ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Couleur des documents</h2>
+              <p className="text-sm text-gray-600">
+                Choisissez une couleur principale pour vos devis et factures.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveAppearance} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {DOCUMENT_COLOR_OPTIONS.map((option) => {
+                  const isSelected = appearanceForm.couleur_documents === option.value;
+                  const labelStyle = isSelected
+                    ? { borderColor: option.value, boxShadow: `0 0 0 2px ${option.value}` }
+                    : { borderColor: option.value };
+
+                  return (
+                    <label
+                      key={option.value}
+                      className="flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer"
+                      style={labelStyle}
+                    >
+                      <input
+                        type="radio"
+                        name="couleur_documents"
+                        value={option.value}
+                        checked={isSelected}
+                        onChange={() =>
+                          setAppearanceForm({ couleur_documents: option.value })
+                        }
+                        className="sr-only"
+                      />
+                      <span
+                        className="h-6 w-6 rounded-full border border-gray-200"
+                        style={{ backgroundColor: option.value }}
+                        aria-hidden="true"
+                      />
+                      <span className="text-sm text-gray-700">{option.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={savingAppearance}
+                  className="px-4 py-2 rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingAppearance ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
               </div>
             </form>

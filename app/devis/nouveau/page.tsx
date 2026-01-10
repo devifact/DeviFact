@@ -72,6 +72,7 @@ export default function NouveauDevisPage() {
   const [clientId, setClientId] = useState('');
   const [numero, setNumero] = useState('');
   const [dateValidite, setDateValidite] = useState('');
+  const [informationsTravaux, setInformationsTravaux] = useState('');
   const [notes, setNotes] = useState('');
   const [lignes, setLignes] = useState<LigneDevis[]>([
     {
@@ -191,6 +192,7 @@ export default function NouveauDevisPage() {
       setClientId(devisData.client_id ?? '');
       setNumero(devisData.numero ?? '');
       setDateValidite(formatDateValue(devisData.date_validite));
+      setInformationsTravaux(devisData.informations_travaux ?? '');
       setNotes(devisData.notes ?? '');
 
       const produitIds = (lignesData || [])
@@ -608,6 +610,7 @@ export default function NouveauDevisPage() {
             numero,
             client_id: clientId,
             date_validite: dateValidite || null,
+            informations_travaux: informationsTravaux || null,
             total_ht: totals.totalHT,
             total_tva: totals.totalTVA,
             total_ttc: totals.totalTTC,
@@ -657,6 +660,7 @@ export default function NouveauDevisPage() {
           numero,
           client_id: clientId,
           date_validite: dateValidite || null,
+          informations_travaux: informationsTravaux || null,
           statut: 'brouillon',
           total_ht: totals.totalHT,
           total_tva: totals.totalTVA,
@@ -798,6 +802,20 @@ export default function NouveauDevisPage() {
                 title="Notes"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
                 placeholder="Notes additionnelles..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Informations sur les travaux / services
+              </label>
+              <textarea
+                value={informationsTravaux}
+                onChange={(e) => setInformationsTravaux(e.target.value)}
+                rows={3}
+                title="Informations sur les travaux / services"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                placeholder="Description globale du devis..."
               />
             </div>
           </div>

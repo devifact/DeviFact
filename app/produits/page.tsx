@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout.tsx';
 import { useAuth } from '@/lib/auth-context.tsx';
+import { useCompanySettings } from '@/lib/hooks/use-company-settings.ts';
 import { supabase } from '@/lib/supabase.ts';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -31,8 +32,39 @@ type Fournisseur = {
   nom: string;
 };
 
+type CsvImportMode = 'create' | 'update' | 'ignore';
+
+type ImportRow = {
+  lineNumber: number;
+  data: {
+    designation: string;
+    reference: string;
+    referenceNormalized: string;
+    categorie: string | null;
+    unite: string;
+    prix_ht_defaut: number;
+    taux_tva_defaut: number;
+    marge_defaut: number;
+    fournisseur_nom: string | null;
+    stock: number | null;
+    actif: boolean;
+  };
+  errors: string[];
+  warnings: string[];
+};
+
+const CSV_HEADER = 'designation;reference;prix_ht;tva;unite;marge;fournisseur;stock;statut;categorie';
+const CSV_TEMPLATE = [
+  CSV_HEADER,
+  'Exemple produit;REF-001;49.90;20;unite;10;Fournisseur A;5;actif;Divers',
+].join('\n');
+
+const TVA_OPTIONS = [0, 5.5, 10, 20];
+const TVA_ALLOWED = new Set(TVA_OPTIONS);
+
 export default function ProduitsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { settings } = useCompanySettings();
   const router = useRouter();
   const [produitsStandards, setProduitsStandards] = useState<Produit[]>([]);
   const [produitsCustom, setProduitsCustom] = useState<Produit[]>([]);
@@ -48,11 +80,33 @@ export default function ProduitsPage() {
   const [imageError, setImageError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const tvaOptions = [0, 5.5, 10, 20];
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importMode, setImportMode] = useState<CsvImportMode>('create');
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importFileName, setImportFileName] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<{
+    imported: number;
+    updated: number;
+    ignored: number;
+    errors: number;
+  } | null>(null);
+  const [importColumnPresence, setImportColumnPresence] = useState({
+    marge: false,
+    fournisseur: false,
+    stock: false,
+    statut: false,
+    categorie: false,
+  });
+  const tvaOptions = TVA_OPTIONS;
   const normalizeReference = (value: string) => {
     const trimmed = value.trim();
     return trimmed ? trimmed.toUpperCase() : '';
   };
+  const defaultTva = typeof settings?.taux_tva_defaut === 'number' ? settings.taux_tva_defaut : 20;
+  const defaultMarge = typeof settings?.marge_defaut === 'number' ? settings.marge_defaut : 0;
+  const tvaAllowed = TVA_ALLOWED;
 
   const [formData, setFormData] = useState({
     designation: '',
@@ -162,6 +216,360 @@ export default function ProduitsPage() {
   };
   const filteredStandards = produitsStandards.filter(matchesSearch);
   const filteredCustom = produitsCustom.filter(matchesSearch);
+  const validImportRows = importRows.filter((row) => row.errors.length === 0);
+  const errorImportRows = importRows.filter((row) => row.errors.length > 0);
+  const warningCount = importRows.reduce((sum, row) => sum + row.warnings.length, 0);
+
+  const fournisseurNameMap = useMemo(() => {
+    return new Map(
+      fournisseurs.map((fournisseur) => [fournisseur.nom.trim().toLowerCase(), fournisseur.id])
+    );
+  }, [fournisseurs]);
+
+  const parseCsvLine = (line: string) => {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+      const nextChar = line[index + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          index += 1;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (char === ';' && !inQuotes) {
+        values.push(current);
+        current = '';
+        continue;
+      }
+
+      current += char;
+    }
+
+    values.push(current);
+    return values;
+  };
+
+  const parseCsvNumber = (value: string) => {
+    const cleaned = value.replace(/\s/g, '').replace(',', '.');
+    return cleaned ? Number(cleaned) : Number.NaN;
+  };
+
+  const resetImportState = () => {
+    setImportRows([]);
+    setImportErrors([]);
+    setImportFileName('');
+    setImportSummary(null);
+    setImportColumnPresence({
+      marge: false,
+      fournisseur: false,
+      stock: false,
+      statut: false,
+      categorie: false,
+    });
+  };
+
+  const handleDownloadTemplate = () => {
+    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'modele-produits.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadBlankCsv = () => {
+    const blob = new Blob([CSV_HEADER], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'modele-produits-vierge.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleParseCsv = (text: string) => {
+    setImportSummary(null);
+    const trimmed = text.trim();
+    if (!trimmed) {
+      setImportErrors(['Le fichier CSV est vide.']);
+      setImportRows([]);
+      return;
+    }
+
+    const lines = trimmed.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    if (lines.length < 2) {
+      setImportErrors(['Le fichier doit contenir au moins une ligne de donnees.']);
+      setImportRows([]);
+      return;
+    }
+
+    const headers = parseCsvLine(lines[0]).map((header) =>
+      header.trim().toLowerCase().replace(/^\ufeff/, '')
+    );
+    const requiredColumns = ['designation', 'reference', 'prix_ht', 'tva', 'unite'];
+    const missing = requiredColumns.filter((column) => !headers.includes(column));
+
+    if (missing.length > 0) {
+      setImportErrors([`Colonnes obligatoires manquantes: ${missing.join(', ')}`]);
+      setImportRows([]);
+      return;
+    }
+
+    const columnPresence = {
+      marge: headers.includes('marge'),
+      fournisseur: headers.includes('fournisseur'),
+      stock: headers.includes('stock'),
+      statut: headers.includes('statut'),
+      categorie: headers.includes('categorie'),
+    };
+    setImportColumnPresence(columnPresence);
+    setImportErrors([]);
+
+    const headerIndex = new Map(headers.map((header, index) => [header, index]));
+    const rows: ImportRow[] = [];
+
+    for (let i = 1; i < lines.length; i += 1) {
+      const values = parseCsvLine(lines[i]);
+      const getValue = (column: string) => {
+        const index = headerIndex.get(column);
+        if (index === undefined) return '';
+        return (values[index] ?? '').trim();
+      };
+
+      const errors: string[] = [];
+      const warnings: string[] = [];
+
+      const designation = getValue('designation');
+      if (!designation) errors.push('designation: obligatoire');
+
+      const reference = getValue('reference');
+      if (!reference) errors.push('reference: obligatoire');
+      const referenceNormalized = normalizeReference(reference);
+
+      const prixValue = parseCsvNumber(getValue('prix_ht'));
+      if (!Number.isFinite(prixValue) || prixValue < 0) {
+        errors.push('prix_ht: invalide');
+      }
+
+      const tvaRaw = getValue('tva');
+      const tvaValue = parseCsvNumber(tvaRaw);
+      if (!Number.isFinite(tvaValue) || !tvaAllowed.has(tvaValue)) {
+        errors.push('tva: invalide (0, 5.5, 10, 20)');
+      }
+
+      const unite = getValue('unite');
+      if (!unite) errors.push('unite: obligatoire');
+
+      const margeValue = columnPresence.marge ? parseCsvNumber(getValue('marge')) : defaultMarge;
+      const margeDefaut = Number.isFinite(margeValue) ? margeValue : defaultMarge;
+
+      const fournisseurNom = columnPresence.fournisseur ? getValue('fournisseur') : '';
+      if (fournisseurNom && !fournisseurNameMap.has(fournisseurNom.toLowerCase())) {
+        warnings.push(`fournisseur: introuvable (${fournisseurNom})`);
+      }
+
+      const stockValue = columnPresence.stock ? parseCsvNumber(getValue('stock')) : Number.NaN;
+      let stock: number | null = null;
+      if (columnPresence.stock) {
+        if (!Number.isFinite(stockValue) || stockValue < 0) {
+          errors.push('stock: invalide');
+        } else {
+          stock = stockValue;
+        }
+      }
+
+      const statutRaw = columnPresence.statut ? getValue('statut') : '';
+      let actif = true;
+      if (columnPresence.statut && statutRaw) {
+        const normalized = statutRaw.toLowerCase();
+        if (normalized === 'actif') actif = true;
+        else if (normalized === 'inactif') actif = false;
+        else errors.push('statut: invalide (actif | inactif)');
+      }
+
+      const categorie = columnPresence.categorie ? getValue('categorie') : '';
+
+      rows.push({
+        lineNumber: i + 1,
+        data: {
+          designation,
+          reference,
+          referenceNormalized,
+          categorie: categorie || null,
+          unite,
+          prix_ht_defaut: Number.isFinite(prixValue) ? prixValue : 0,
+          taux_tva_defaut: Number.isFinite(tvaValue) ? tvaValue : defaultTva,
+          marge_defaut: margeDefaut,
+          fournisseur_nom: fournisseurNom || null,
+          stock,
+          actif,
+        },
+        errors,
+        warnings,
+      });
+    }
+
+    setImportRows(rows);
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setImportErrors(['Merci de choisir un fichier .csv']);
+      setImportRows([]);
+      setImportFileName('');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      setImportFileName(file.name);
+      handleParseCsv(text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la lecture du fichier';
+      setImportErrors([message]);
+      setImportRows([]);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!user) return;
+    const validRows = importRows.filter((row) => row.errors.length === 0);
+    if (validRows.length === 0) return;
+
+    const existingByReference = new Map<string, Produit>();
+    [...produitsStandards, ...produitsCustom].forEach((produit) => {
+      if (!produit.reference) return;
+      const key = normalizeReference(produit.reference);
+      if (!key) return;
+      const current = existingByReference.get(key);
+      if (!current || new Date(produit.created_at) > new Date(current.created_at)) {
+        existingByReference.set(key, produit);
+      }
+    });
+
+    const summary = {
+      imported: 0,
+      updated: 0,
+      ignored: 0,
+      errors: importRows.length - validRows.length,
+    };
+
+    try {
+      setImporting(true);
+      const createPayloads: Array<Record<string, unknown>> = [];
+      const updateRows: Array<{ id: string; payload: Record<string, unknown> }> = [];
+
+      for (const row of validRows) {
+        const existing = existingByReference.get(row.data.referenceNormalized);
+
+        if (importMode === 'ignore' && existing) {
+          summary.ignored += 1;
+          continue;
+        }
+
+        if (importMode === 'update') {
+          if (!existing) {
+            summary.ignored += 1;
+            continue;
+          }
+
+          const updatePayload: Record<string, unknown> = {
+            designation: row.data.designation,
+            reference: row.data.referenceNormalized || null,
+            unite: row.data.unite,
+            prix_ht_defaut: row.data.prix_ht_defaut,
+            taux_tva_defaut: row.data.taux_tva_defaut,
+            actif: row.data.actif,
+          };
+
+          if (importColumnPresence.marge) {
+            updatePayload.marge_defaut = row.data.marge_defaut;
+          }
+          if (importColumnPresence.categorie) {
+            updatePayload.categorie = row.data.categorie || null;
+          }
+          if (importColumnPresence.stock) {
+            updatePayload.stock_actuel = row.data.stock ?? 0;
+            updatePayload.gestion_stock = true;
+          }
+          if (importColumnPresence.fournisseur) {
+            const fournisseurId = row.data.fournisseur_nom
+              ? fournisseurNameMap.get(row.data.fournisseur_nom.toLowerCase()) ?? null
+              : null;
+            updatePayload.fournisseur_defaut_id = fournisseurId;
+          }
+
+          updateRows.push({ id: existing.id, payload: updatePayload });
+          continue;
+        }
+
+        const fournisseurId = row.data.fournisseur_nom
+          ? fournisseurNameMap.get(row.data.fournisseur_nom.toLowerCase()) ?? null
+          : null;
+
+        createPayloads.push({
+          user_id: user.id,
+          type: 'custom',
+          designation: row.data.designation,
+          reference: row.data.referenceNormalized || null,
+          categorie: row.data.categorie || null,
+          unite: row.data.unite,
+          prix_ht_defaut: row.data.prix_ht_defaut,
+          taux_tva_defaut: row.data.taux_tva_defaut,
+          marge_defaut: row.data.marge_defaut,
+          fournisseur_defaut_id: fournisseurId,
+          actif: row.data.actif,
+          gestion_stock: true,
+          stock_actuel: row.data.stock ?? 0,
+          stock_minimum: 1,
+        });
+      }
+
+      for (const updateRow of updateRows) {
+        const { error } = await supabase
+          .from('produits')
+          .update(updateRow.payload)
+          .eq('id', updateRow.id);
+
+        if (error) {
+          summary.errors += 1;
+        } else {
+          summary.updated += 1;
+        }
+      }
+
+      const chunkSize = 100;
+      for (let index = 0; index < createPayloads.length; index += chunkSize) {
+        const chunk = createPayloads.slice(index, index + chunkSize);
+        const { error } = await supabase.from('produits').insert(chunk);
+        if (error) {
+          summary.errors += chunk.length;
+        } else {
+          summary.imported += chunk.length;
+        }
+      }
+
+      setImportSummary(summary);
+      fetchProduits();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de l\'import';
+      toast.error(message);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const openModal = (produit?: Produit, typeOverride?: 'standard' | 'custom') => {
     if (produit) {
@@ -409,6 +817,17 @@ export default function ProduitsPage() {
   const handleAddStandard = () => {
     setCreateProductType('standard');
     openModal(undefined, 'standard');
+  };
+
+  const openImportModal = () => {
+    resetImportState();
+    setImportMode('create');
+    setShowImportModal(true);
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    resetImportState();
   };
 
   const handleEditSelected = () => {
@@ -682,6 +1101,13 @@ export default function ProduitsPage() {
           >
             Supprimer
           </button>
+          <button
+            type="button"
+            onClick={openImportModal}
+            className="text-gray-600 hover:text-gray-800 font-medium"
+          >
+            Importer (CSV)
+          </button>
           <Link
             href="/fournisseurs"
             className="text-gray-500 hover:text-gray-700 font-medium"
@@ -802,6 +1228,186 @@ export default function ProduitsPage() {
           </div>
         </div>
       </div>
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Importer des produits (CSV)</h2>
+              <button
+                type="button"
+                onClick={closeImportModal}
+                className="text-gray-600 hover:text-gray-900"
+              >
+                Fermer
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <button
+                type="button"
+                onClick={handleDownloadBlankCsv}
+                className="text-sm text-blue-600 underline hover:text-blue-700"
+              >
+                Telecharger un fichier CSV vierge
+              </button>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleImportFile}
+                className="text-sm text-gray-600"
+              />
+              {importFileName && (
+                <span className="text-sm text-gray-500">Fichier: {importFileName}</span>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="border border-gray-200 rounded-md p-4">
+                <p className="text-sm font-medium text-gray-900 mb-2">Mode d&apos;import</p>
+                <div className="flex flex-col gap-2 text-sm text-gray-700">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="import_mode"
+                      value="create"
+                      checked={importMode === 'create'}
+                      onChange={() => setImportMode('create')}
+                    />
+                    Creer un nouveau produit (meme reference autorisee)
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="import_mode"
+                      value="update"
+                      checked={importMode === 'update'}
+                      onChange={() => setImportMode('update')}
+                    />
+                    Mettre a jour le produit existant (match sur reference)
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="import_mode"
+                      value="ignore"
+                      checked={importMode === 'ignore'}
+                      onChange={() => setImportMode('ignore')}
+                    />
+                    Ignorer les references existantes
+                  </label>
+                </div>
+              </div>
+
+              {importErrors.length > 0 && (
+                <div className="border border-red-200 bg-red-50 text-red-700 text-sm rounded-md p-3 space-y-1">
+                  {importErrors.map((error) => (
+                    <p key={error}>{error}</p>
+                  ))}
+                </div>
+              )}
+
+              {importRows.length > 0 && (
+                <div className="border border-gray-200 rounded-md p-4">
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-700 mb-3">
+                    <span>Total lignes: {importRows.length}</span>
+                    <span>Lignes valides: {validImportRows.length}</span>
+                    <span>Lignes en erreur: {errorImportRows.length}</span>
+                    <span>Alertes: {warningCount}</span>
+                  </div>
+
+                  {errorImportRows.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-2">Erreurs detectees</h4>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        {errorImportRows.map((row) => (
+                          <li key={row.lineNumber}>
+                            Ligne {row.lineNumber}: {row.errors.join(', ')}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {warningCount > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-2">Alertes</h4>
+                      <ul className="text-sm text-amber-700 space-y-1">
+                        {importRows
+                          .filter((row) => row.warnings.length > 0)
+                          .map((row) => (
+                            <li key={row.lineNumber}>
+                              Ligne {row.lineNumber}: {row.warnings.join(', ')}
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">Ligne</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">Designation</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">Reference</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">Prix HT</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">TVA</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-500">Unite</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {importRows.slice(0, 8).map((row) => (
+                          <tr key={row.lineNumber} className={row.errors.length ? 'bg-red-50' : ''}>
+                            <td className="px-3 py-2 text-gray-700">{row.lineNumber}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.data.designation}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.data.reference}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.data.prix_ht_defaut.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-gray-700">{row.data.taux_tva_defaut}%</td>
+                            <td className="px-3 py-2 text-gray-700">{row.data.unite}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {importRows.length > 8 && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Apercu limite aux 8 premieres lignes.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {importSummary && (
+                <div className="border border-green-200 bg-green-50 text-green-700 text-sm rounded-md p-3">
+                  <p>Produits importes: {importSummary.imported}</p>
+                  <p>Produits mis a jour: {importSummary.updated}</p>
+                  <p>Lignes ignorees: {importSummary.ignored}</p>
+                  <p>Erreurs: {importSummary.errors}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                type="button"
+                onClick={closeImportModal}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmImport}
+                disabled={importing || validImportRows.length === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {importing ? 'Import en cours...' : 'Importer les lignes valides'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

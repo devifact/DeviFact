@@ -122,6 +122,7 @@ export interface Database {
           taux_tva_defaut: number | null
           marge_defaut: number | null
           tva_intracommunautaire: string | null
+          couleur_documents: string | null
           created_at: string
           updated_at: string
         }
@@ -142,6 +143,7 @@ export interface Database {
           taux_tva_defaut?: number | null
           marge_defaut?: number | null
           tva_intracommunautaire?: string | null
+          couleur_documents?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -162,6 +164,7 @@ export interface Database {
           taux_tva_defaut?: number | null
           marge_defaut?: number | null
           tva_intracommunautaire?: string | null
+          couleur_documents?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -366,6 +369,7 @@ export interface Database {
           total_tva: number
           total_ttc: number
           notes: string | null
+          informations_travaux: string | null
           created_at: string
           updated_at: string
         }
@@ -381,6 +385,7 @@ export interface Database {
           total_tva?: number
           total_ttc?: number
           notes?: string | null
+          informations_travaux?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -396,6 +401,7 @@ export interface Database {
           total_tva?: number
           total_ttc?: number
           notes?: string | null
+          informations_travaux?: string | null
           created_at?: string
           updated_at?: string
         }

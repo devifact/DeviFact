@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase.ts';
 import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Database } from '@/lib/database.types.ts';
+import { resolveDocumentColor } from '@/lib/document-colors.ts';
+import { buildDocumentFooter } from '@/lib/document-footer.ts';
 
 type Facture = Database['public']['Tables']['factures']['Row'];
 type LigneFacture = Database['public']['Tables']['lignes_factures']['Row'];
@@ -38,6 +40,7 @@ interface FactureDetails extends Facture {
   penalites_retard?: string;
   escompte?: string;
   indemnite_recouvrement?: number;
+  informations_travaux?: string | null;
 }
 
 export default function FactureDetailPage({ params }: { params: { id: string } }) {
@@ -74,6 +77,18 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
 
       if (error) throw error;
 
+      let informationsTravaux: string | null = null;
+
+      if (data.devis_id) {
+        const { data: devisInfo } = await supabase
+          .from('devis')
+          .select('informations_travaux')
+          .eq('id', data.devis_id)
+          .maybeSingle();
+
+        informationsTravaux = devisInfo?.informations_travaux ?? null;
+      }
+
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -91,6 +106,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
       const factureDetails: FactureDetails = {
         ...data,
         profile: profileData || undefined,
+        informations_travaux: informationsTravaux,
       } as FactureDetails;
 
       setFacture(factureDetails);
@@ -305,20 +321,16 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
     .filter((field) => field.value)
     .map((field) => `${field.label}: ${String(field.value)}`)
     .join(' | ');
-  const footerAddressParts = [
-    facture.profile?.adresse,
-    [facture.profile?.code_postal, facture.profile?.ville].filter(Boolean).join(' ').trim(),
-  ].filter(Boolean);
-  const footerParts = [
-    facture.profile?.raison_sociale,
-    footerAddressParts.length ? footerAddressParts.join(', ') : '',
-    facture.profile?.telephone ? `Tel: ${facture.profile.telephone}` : '',
-    facture.profile?.email_contact ? `Email: ${facture.profile.email_contact}` : '',
-    facture.profile?.siret ? `SIRET: ${facture.profile.siret}` : '',
-    companySettings?.tva_intracommunautaire ? `TVA intracommunautaire: ${companySettings.tva_intracommunautaire}` : '',
-    facture.profile?.code_ape ? `Code APE: ${facture.profile.code_ape}` : '',
-  ].filter(Boolean);
-  const footerText = footerParts.join(' | ');
+  const documentColor = resolveDocumentColor(companySettings?.couleur_documents);
+  const totalPaye = facture.paiements.reduce(
+    (sum, paiement) => sum + parseFloat(paiement.montant.toString()),
+    0
+  );
+  const resteAPayer = Math.max(
+    0,
+    parseFloat(facture.total_ttc.toString()) - totalPaye
+  );
+  const footerText = buildDocumentFooter(facture.profile, companySettings);
 
   return (
     <DashboardLayout>
@@ -404,20 +416,25 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
               {facture.client.telephone && <p className="text-gray-600 text-sm">{facture.client.telephone}</p>}
             </div>
           </div>
-          <div className="flex justify-end mb-6">
-            <div className="text-right text-sm text-gray-600">
-              <div className="mb-2">{getStatusBadge(facture.statut)}</div>
-              <div className="space-y-1">
-                <p>
-                  <span className="font-medium">Date d&apos;emission:</span><br />
-                  {new Date(facture.date_emission).toLocaleDateString('fr-FR')}
+          <div className="border border-gray-200 rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-semibold mb-3" style={{ color: documentColor }}>Informations</h3>
+            <div className="grid gap-4 md:grid-cols-[1.6fr_1fr]">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Informations sur les travaux / services
                 </p>
-                {facture.date_echeance && (
-                  <p>
-                    <span className="font-medium">Date d&apos;echeance:</span><br />
-                    {new Date(facture.date_echeance).toLocaleDateString('fr-FR')}
-                  </p>
-                )}
+                <p className="text-sm text-gray-600">
+                  {facture.informations_travaux || 'Aucune information renseignee.'}
+                </p>
+              </div>
+              <div className="text-sm text-gray-600 md:text-right">
+                <div className="mb-2">{getStatusBadge(facture.statut)}</div>
+                <p>
+                  <span className="font-medium">Total paye:</span> {totalPaye.toFixed(2)}&nbsp;&euro;
+                </p>
+                <p className="mt-1">
+                  <span className="font-medium">Reste a payer:</span> {resteAPayer.toFixed(2)}&nbsp;&euro;
+                </p>
               </div>
             </div>
           </div>
@@ -429,23 +446,23 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
           )}
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold mb-4">Lignes de facturation</h3>
+            <h3 className="text-lg font-semibold mb-4" style={{ color: documentColor }}>Lignes de facturation</h3>
             <table className="min-w-full">
-              <thead className="bg-gray-50">
+              <thead style={{ backgroundColor: documentColor }}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase">
                     Désignation
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-white uppercase">
                     Quantité
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-white uppercase">
                     Prix HT
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-white uppercase">
                     TVA
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-white uppercase">
                     Total HT
                   </th>
                 </tr>
@@ -471,22 +488,22 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
           <div className="border-t mt-6 pt-4">
             <div className="flex justify-between">
               <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Mentions obligatoires</h3>
+                <h3 className="text-sm font-semibold mb-3" style={{ color: documentColor }}>Mentions obligatoires</h3>
                 <p className="text-[11px] text-gray-600 leading-4">
                   {mentionSummary}
                 </p>
               </div>
 
-              <div className="w-64 space-y-2">
+              <div className="w-64 space-y-2 border border-gray-200 rounded-md p-3" style={{ borderColor: documentColor }}>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total HT:</span>
+                  <span className="font-medium" style={{ color: documentColor }}>Total HT:</span>
                   <span className="font-medium">{facture.total_ht.toFixed(2)} €</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">TVA:</span>
+                  <span className="font-medium" style={{ color: documentColor }}>TVA:</span>
                   <span className="font-medium">{facture.total_tva.toFixed(2)} €</span>
                 </div>
-                <div className="flex justify-between text-lg font-bold border-t pt-2">
+                <div className="flex justify-between text-lg font-bold rounded-md px-3 py-2" style={{ backgroundColor: documentColor, color: "#fff" }}>
                   <span>Total TTC:</span>
                   <span>{facture.total_ttc.toFixed(2)} €</span>
                 </div>
@@ -513,7 +530,7 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
           {hasBank && (
             <div className="border-t mt-6 pt-4">
               <div className="text-xs text-gray-600">
-                <h4 className="text-sm font-semibold text-gray-900 mb-2">Informations bancaires</h4>
+                <h4 className="text-sm font-semibold mb-2" style={{ color: documentColor }}>Informations bancaires</h4>
                 <p className="text-[11px] text-gray-600 leading-4">
                   {bankSummary}
                 </p>
@@ -530,20 +547,20 @@ export default function FactureDetailPage({ params }: { params: { id: string } }
 
         {facture.paiements.length > 0 && (
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold mb-4">Historique des paiements</h3>
+            <h3 className="text-lg font-semibold mb-4" style={{ color: documentColor }}>Historique des paiements</h3>
             <table className="min-w-full">
-              <thead className="bg-gray-50">
+              <thead style={{ backgroundColor: documentColor }}>
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase">
                     Mode
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-white uppercase">
                     Référence
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-white uppercase">
                     Montant
                   </th>
                 </tr>

@@ -14,6 +14,36 @@ const buildCorsHeaders = (origin: string | null) => ({
 
 const sanitizeFilenamePart = (value: string) => value.replace(/[^A-Za-z0-9_-]/g, '');
 
+const DEFAULT_DOCUMENT_COLOR = '#2563eb';
+const DOCUMENT_COLOR_OPTIONS = new Set([
+  '#2563eb',
+  '#0ea5e9',
+  '#14b8a6',
+  '#22c55e',
+  '#84cc16',
+  '#f59e0b',
+  '#f97316',
+  '#fb7185',
+]);
+
+const resolveDocumentColor = (value?: string | null) =>
+  value && DOCUMENT_COLOR_OPTIONS.has(value) ? value : DEFAULT_DOCUMENT_COLOR;
+
+const hexToRgb = (hex: string) => {
+  const normalized = hex.trim().replace('#', '');
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized;
+
+  if (full.length !== 6) return null;
+  const intValue = Number.parseInt(full, 16);
+  if (Number.isNaN(intValue)) return null;
+  const r = (intValue >> 16) & 255;
+  const g = (intValue >> 8) & 255;
+  const b = intValue & 255;
+  return { r: r / 255, g: g / 255, b: b / 255 };
+};
+
 type ProfileData = {
   logo_url?: string | null;
   raison_sociale?: string | null;
@@ -45,6 +75,7 @@ type CompanySettingsData = {
   reference_paiement?: string | null;
   rib?: string | null;
   tva_intracommunautaire?: string | null;
+  couleur_documents?: string | null;
 };
 
 type ClientData = {
@@ -72,6 +103,7 @@ type DocumentData = {
   total_tva: number | string;
   total_ttc: number | string;
   notes?: string | null;
+  informations_travaux?: string | null;
   date_creation?: string | null;
   date_validite?: string | null;
   date_emission?: string | null;
@@ -166,10 +198,11 @@ const drawRightAligned = (
   xRight: number,
   y: number,
   font: PDFFont,
-  size: number
+  size: number,
+  color = rgb(0, 0, 0)
 ) => {
   const textWidth = font.widthOfTextAtSize(text, size);
-  page.drawText(text, { x: xRight - textWidth, y, size, font, color: rgb(0, 0, 0) });
+  page.drawText(text, { x: xRight - textWidth, y, size, font, color });
 };
 
 const generatePdf = async (
@@ -195,6 +228,11 @@ const generatePdf = async (
 
   let y = height - margin;
 
+  const accentHex = resolveDocumentColor(companySettings?.couleur_documents);
+  const accentValues = hexToRgb(accentHex) ?? { r: 0.145, g: 0.388, b: 0.922 };
+  const accentColor = rgb(accentValues.r, accentValues.g, accentValues.b);
+  const accentTextColor = rgb(1, 1, 1);
+
   const drawTableHeader = () => {
     const colDesignationX = margin;
     const colQtyX = colDesignationX + 260;
@@ -202,11 +240,32 @@ const generatePdf = async (
     const colTvaX = colUnitX + 70;
     const colTotalX = colTvaX + 50;
 
-    page.drawText('Designation', { x: colDesignationX, y, size: fontSize, font: fontBold });
-    page.drawText('Qty', { x: colQtyX, y, size: fontSize, font: fontBold });
-    page.drawText('Unit HT', { x: colUnitX, y, size: fontSize, font: fontBold });
-    page.drawText('TVA', { x: colTvaX, y, size: fontSize, font: fontBold });
-    page.drawText('Total HT', { x: colTotalX, y, size: fontSize, font: fontBold });
+    const headerHeight = lineHeight + 6;
+    page.drawRectangle({
+      x: margin,
+      y: y - headerHeight + 4,
+      width: width - margin * 2,
+      height: headerHeight,
+      color: accentColor,
+    });
+
+    page.drawText('Designation', {
+      x: colDesignationX,
+      y,
+      size: fontSize,
+      font: fontBold,
+      color: accentTextColor,
+    });
+    page.drawText('Qty', { x: colQtyX, y, size: fontSize, font: fontBold, color: accentTextColor });
+    page.drawText('Unit HT', { x: colUnitX, y, size: fontSize, font: fontBold, color: accentTextColor });
+    page.drawText('TVA', { x: colTvaX, y, size: fontSize, font: fontBold, color: accentTextColor });
+    page.drawText('Total HT', {
+      x: colTotalX,
+      y,
+      size: fontSize,
+      font: fontBold,
+      color: accentTextColor,
+    });
 
     y -= lineHeight;
     page.drawLine({
@@ -231,7 +290,7 @@ const generatePdf = async (
     if (!safeLines.length) return;
 
     ensureSpace(lineHeight * (safeLines.length + 2), false);
-    page.drawText(titleText, { x: margin, y, size: fontSize, font: fontBold });
+    page.drawText(titleText, { x: margin, y, size: fontSize, font: fontBold, color: accentColor });
     y -= lineHeight;
 
     for (const line of safeLines) {
@@ -241,6 +300,24 @@ const generatePdf = async (
         y -= lineHeight;
       }
     }
+  };
+
+  const drawCompactSection = (titleText: string, content: string) => {
+    if (!content || !content.trim()) return;
+    const compactFontSize = 8;
+    const compactLineHeight = 10;
+    const wrapped = wrapText(content, font, compactFontSize, width - margin * 2);
+    const needed = lineHeight + compactLineHeight * wrapped.length + compactLineHeight;
+    ensureSpace(needed, false);
+
+    page.drawText(titleText, { x: margin, y, size: fontSize, font: fontBold, color: accentColor });
+    y -= lineHeight;
+
+    for (const chunk of wrapped) {
+      page.drawText(chunk, { x: margin, y, size: compactFontSize, font });
+      y -= compactLineHeight;
+    }
+    y -= compactLineHeight;
   };
 
   const title = `${type.toUpperCase()} ${document.numero ?? ''}`.trim();
@@ -280,6 +357,53 @@ const generatePdf = async (
 
   y -= 4;
 
+  const mentionDefaults = {
+    conditions_reglement: 'Paiement a 30 jours',
+    delai_paiement: 'Paiement a 30 jours',
+    penalites_retard: 'Taux BCE + 10 points',
+    indemnite_recouvrement_montant: 40,
+    indemnite_recouvrement_texte: 'EUR (article L441-6 du Code de commerce)',
+  };
+
+  const mentionConditions = companySettings?.conditions_reglement ?? mentionDefaults.conditions_reglement;
+  const mentionDelai = companySettings?.delai_paiement ?? mentionDefaults.delai_paiement;
+  const mentionPenalites = companySettings?.penalites_retard ?? mentionDefaults.penalites_retard;
+  const mentionIndemniteMontant = companySettings?.indemnite_recouvrement_montant ?? mentionDefaults.indemnite_recouvrement_montant;
+  const mentionIndemniteTexte = companySettings?.indemnite_recouvrement_texte ?? mentionDefaults.indemnite_recouvrement_texte;
+  const mentionEscompte = companySettings?.escompte ?? '';
+
+  const defaultTvaRate = typeof companySettings?.taux_tva_defaut === 'number'
+    ? companySettings.taux_tva_defaut
+    : (typeof profile.taux_tva === 'number'
+      ? profile.taux_tva
+      : (profile.tva_applicable === false ? 0 : 20));
+  const tvaNonApplicable = defaultTvaRate === 0;
+
+  const mentionParts = [
+    `Conditions: ${mentionConditions}`,
+    `Delai: ${mentionDelai}`,
+    `Penalites: ${mentionPenalites}`,
+    `Indemnite: ${formatMoney(mentionIndemniteMontant)} ${mentionIndemniteTexte}`,
+    mentionEscompte ? `Escompte: ${mentionEscompte}` : '',
+    tvaNonApplicable ? 'TVA non applicable, art. 293B du CGI' : '',
+  ].filter((part) => part && part.trim().length > 0);
+
+  const bankParts = [
+    companySettings?.titulaire_compte ? `Titulaire: ${companySettings.titulaire_compte}` : '',
+    companySettings?.banque_nom ? `Banque: ${companySettings.banque_nom}` : '',
+    companySettings?.domiciliation ? `Domiciliation: ${companySettings.domiciliation}` : '',
+    profile.iban ? `IBAN: ${profile.iban}` : '',
+    profile.bic ? `BIC: ${profile.bic}` : '',
+    companySettings?.reference_paiement ? `Reference paiement: ${companySettings.reference_paiement}` : '',
+    companySettings?.modes_paiement_acceptes ? `Modes de paiement: ${companySettings.modes_paiement_acceptes}` : '',
+  ].filter((part) => part && part.trim().length > 0);
+
+  const mentionSummary = mentionParts.join(' | ');
+  const bankSummary = bankParts.join(' | ');
+  const acceptanceText =
+    'Bon pour accord. Le present devis vaut engagement apres acceptation par le client. ' +
+    'Un acompte de 30 % du montant total TTC est demande a la signature du devis.';
+
   const metaLines: string[] = [];
   if (document.statut) metaLines.push(`Status: ${document.statut}`);
   if (document.date_creation) metaLines.push(`Date creation: ${formatDate(document.date_creation)}`);
@@ -290,6 +414,15 @@ const generatePdf = async (
   for (const line of metaLines) {
     page.drawText(line, { x: margin, y, size: fontSize, font });
     y -= lineHeight;
+  }
+
+  if (type === 'devis' || type === 'facture') {
+    y -= 6;
+    const workInfo =
+      document.informations_travaux && document.informations_travaux.trim()
+        ? document.informations_travaux
+        : 'Aucune information renseignee.';
+    drawSection('Informations travaux / services', [workInfo]);
   }
 
   y -= 6;
@@ -333,6 +466,11 @@ const generatePdf = async (
     y = rowY - 4;
   }
 
+  if (type === 'devis') {
+    y -= 4;
+    drawSection('Acceptation du devis', [acceptanceText]);
+  }
+
   const totalHtValue =
     document.total_ht === null || document.total_ht === undefined
       ? lignes.reduce((sum, line) => sum + toNumber(line.total_ligne_ht), 0)
@@ -362,16 +500,32 @@ const generatePdf = async (
   });
   y -= lineHeight;
 
-  page.drawText('Total HT', { x: totalsLabelX, y, size: fontSize, font });
+  page.drawText('Total HT', { x: totalsLabelX, y, size: fontSize, font, color: accentColor });
   drawRightAligned(page, formatMoney(totalHtValue), totalsValueRight, y, font, fontSize);
   y -= lineHeight;
 
-  page.drawText('Total TVA', { x: totalsLabelX, y, size: fontSize, font });
+  page.drawText('Total TVA', { x: totalsLabelX, y, size: fontSize, font, color: accentColor });
   drawRightAligned(page, formatMoney(totalTvaValue), totalsValueRight, y, font, fontSize);
   y -= lineHeight;
 
-  page.drawText('Total TTC', { x: totalsLabelX, y, size: fontSize, font: fontBold });
-  drawRightAligned(page, formatMoney(totalTtcValue), totalsValueRight, y, fontBold, fontSize);
+  const ttcRowHeight = lineHeight + 4;
+  page.drawRectangle({
+    x: totalsLabelX,
+    y: y - 2,
+    width: totalsValueRight - totalsLabelX,
+    height: ttcRowHeight,
+    color: accentColor,
+  });
+  page.drawText('Total TTC', { x: totalsLabelX, y, size: fontSize, font: fontBold, color: accentTextColor });
+  drawRightAligned(
+    page,
+    formatMoney(totalTtcValue),
+    totalsValueRight,
+    y,
+    fontBold,
+    fontSize,
+    accentTextColor
+  );
   y -= lineHeight;
 
   if (document.notes) {
@@ -385,67 +539,18 @@ const generatePdf = async (
     }
   }
 
-  const mentionDefaults = {
-    conditions_reglement: 'Paiement a 30 jours',
-    delai_paiement: 'Paiement a 30 jours',
-    penalites_retard: 'Taux BCE + 10 points',
-    indemnite_recouvrement_montant: 40,
-    indemnite_recouvrement_texte: 'EUR (article L441-6 du Code de commerce)',
-  };
-
-  const mentionConditions = companySettings?.conditions_reglement ?? mentionDefaults.conditions_reglement;
-  const mentionDelai = companySettings?.delai_paiement ?? mentionDefaults.delai_paiement;
-  const mentionPenalites = companySettings?.penalites_retard ?? mentionDefaults.penalites_retard;
-  const mentionIndemniteMontant = companySettings?.indemnite_recouvrement_montant ?? mentionDefaults.indemnite_recouvrement_montant;
-  const mentionIndemniteTexte = companySettings?.indemnite_recouvrement_texte ?? mentionDefaults.indemnite_recouvrement_texte;
-  const mentionEscompte = companySettings?.escompte ?? '';
-
-  const defaultTvaRate = typeof companySettings?.taux_tva_defaut === 'number'
-    ? companySettings.taux_tva_defaut
-    : (typeof profile.taux_tva === 'number'
-      ? profile.taux_tva
-      : (profile.tva_applicable === false ? 0 : 20));
-  const tvaNonApplicable = defaultTvaRate === 0;
-
-  const mentionParts = [
-    `Conditions: ${mentionConditions}`,
-    `Delai: ${mentionDelai}`,
-    `Penalites: ${mentionPenalites}`,
-    `Indemnite: ${formatMoney(mentionIndemniteMontant)} ${mentionIndemniteTexte}`,
-    mentionEscompte ? `Escompte: ${mentionEscompte}` : '',
-    tvaNonApplicable ? 'TVA non applicable, art. 293B du CGI' : '',
-  ].filter((part) => part && part.trim().length > 0);
-
-  const bankParts = [
-    companySettings?.titulaire_compte ? `Titulaire: ${companySettings.titulaire_compte}` : '',
-    companySettings?.banque_nom ? `Banque: ${companySettings.banque_nom}` : '',
-    companySettings?.domiciliation ? `Domiciliation: ${companySettings.domiciliation}` : '',
-    profile.iban ? `IBAN: ${profile.iban}` : '',
-    profile.bic ? `BIC: ${profile.bic}` : '',
-    companySettings?.reference_paiement ? `Reference paiement: ${companySettings.reference_paiement}` : '',
-    companySettings?.modes_paiement_acceptes ? `Modes de paiement: ${companySettings.modes_paiement_acceptes}` : '',
-  ].filter((part) => part && part.trim().length > 0);
-
-  const drawCompactSection = (titleText: string, content: string) => {
-    if (!content || !content.trim()) return;
-    const compactFontSize = 8;
-    const compactLineHeight = 10;
-    const wrapped = wrapText(content, font, compactFontSize, width - margin * 2);
-    const needed = lineHeight + compactLineHeight * wrapped.length + compactLineHeight;
-    ensureSpace(needed, false);
-
-    page.drawText(titleText, { x: margin, y, size: fontSize, font: fontBold });
-    y -= lineHeight;
-
-    for (const chunk of wrapped) {
-      page.drawText(chunk, { x: margin, y, size: compactFontSize, font });
-      y -= compactLineHeight;
-    }
-    y -= compactLineHeight;
-  };
-
-  drawCompactSection('Mentions obligatoires', mentionParts.join(' | '));
-  drawCompactSection('Informations bancaires', bankParts.join(' | '));
+  if (type === 'facture') {
+    drawCompactSection('Mentions obligatoires', mentionSummary);
+    drawCompactSection(
+      'Informations bancaires',
+      bankSummary || 'Aucune information bancaire renseignee.'
+    );
+  } else {
+    drawCompactSection(
+      'Informations bancaires',
+      bankSummary || 'Aucune information bancaire renseignee.'
+    );
+  }
 
   const footerAddressParts = [
     profile.adresse,
